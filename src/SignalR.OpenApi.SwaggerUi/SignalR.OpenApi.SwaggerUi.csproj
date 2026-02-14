@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>SignalR.OpenApi.SwaggerUi</PackageId>
+    <Description>SwaggerUI integration for ASP.NET Core SignalR hubs with interactive invocation, streaming, and client events</Description>
+    <Authors>Rami Abughazaleh</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>signalr;openapi;swagger;swaggerui;aspnetcore</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/icnocop/SignalR.OpenApi</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SignalR.OpenApi\SignalR.OpenApi.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\signalr.min.js" LogicalName="signalr.min.js" />
+    <EmbeddedResource Include="Resources\signalr-openapi-plugin.js" LogicalName="signalr-openapi-plugin.js" />
+    <EmbeddedResource Include="Resources\signalr-openapi.css" LogicalName="signalr-openapi.css" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

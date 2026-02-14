@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SignalR.OpenApi\SignalR.OpenApi.csproj" />
+    <ProjectReference Include="..\..\src\SignalR.OpenApi.FluentValidation\SignalR.OpenApi.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\src\SignalR.OpenApi.SwaggerUi\SignalR.OpenApi.SwaggerUi.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,84 @@
+/* Copyright (c) SignalR.OpenApi Contributors. Licensed under the MIT License. */
+/* SignalR OpenAPI SwaggerUI Styling */
+/* Uses existing SwaggerUI CSS classes and conventions for consistent look and feel */
+
+/* Style the "invoke" method label to match SwaggerUI's POST coloring */
+.opblock-summary-method[data-method="invoke"] {
+  background: #49cc90;
+}
+
+/* Style the "stream" method label */
+.opblock-summary-method[data-method="stream"] {
+  background: #fca130;
+}
+
+/* Style the "event" method label for client events */
+.opblock-summary-method[data-method="event"] {
+  background: #61affe;
+}
+
+/* SignalR connection status indicator */
+.signalr-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+.signalr-status--connected {
+  background: #49cc90;
+  color: #fff;
+}
+
+.signalr-status--disconnected {
+  background: #f93e3e;
+  color: #fff;
+}
+
+.signalr-status--connecting {
+  background: #fca130;
+  color: #fff;
+}
+
+.signalr-status--reconnecting {
+  background: #fca130;
+  color: #fff;
+}
+
+/* Stop Stream button styling */
+.signalr-stop-stream {
+  background: #f93e3e !important;
+  color: #fff !important;
+  border-color: #f93e3e !important;
+}
+
+.signalr-stop-stream:hover {
+  background: #e02020 !important;
+}
+
+/* Client event log panel */
+.signalr-event-panel {
+  font-family: sans-serif;
+}
+
+.signalr-event-log {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.signalr-event-entry {
+  border-bottom: 1px solid #e8e8e8;
+  padding: 6px 0;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.signalr-event-entry:last-child {
+  border-bottom: none;
+}

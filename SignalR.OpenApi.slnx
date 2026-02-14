@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src\SignalR.OpenApi\SignalR.OpenApi.csproj" />
+    <Project Path="src\SignalR.OpenApi.FluentValidation\SignalR.OpenApi.FluentValidation.csproj" />
+    <Project Path="src\SignalR.OpenApi.SwaggerUi\SignalR.OpenApi.SwaggerUi.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test\SignalR.OpenApi.Tests\SignalR.OpenApi.Tests.csproj" />
+    <Project Path="test\SignalR.OpenApi.FluentValidation.Tests\SignalR.OpenApi.FluentValidation.Tests.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples\SignalR.OpenApi.Sample\SignalR.OpenApi.Sample.csproj" />
+  </Folder>
+</Solution>
