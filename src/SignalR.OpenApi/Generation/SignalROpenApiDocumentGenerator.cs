@@ -601,19 +601,42 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         var derivedTypes = type.GetCustomAttributes<JsonDerivedTypeAttribute>();
         var schemas = new List<OpenApiSchema>();
         var mapping = new Dictionary<string, string>();
+        var discriminatorPropertyName = polymorphicAttr.TypeDiscriminatorPropertyName ?? "$type";
 
         foreach (var derived in derivedTypes)
         {
-            var derivedSchema = CreateSchemaForType(derived.DerivedType);
             var schemaName = derived.DerivedType.Name;
+            var derivedSchema = (OpenApiSchema?)null;
+            if (this.schemaRegistry.ContainsKey(derived.DerivedType))
+            {
+                this.currentDocument?.Components.Schemas.TryGetValue(schemaName, out derivedSchema);
+            }
+            else
+            {
+                derivedSchema = CreateSchemaForType(derived.DerivedType);
+            }
 
-            if (derived.TypeDiscriminator is string discriminatorValue)
+            if (derivedSchema is null)
+            {
+                continue;
+            }
+
+            var discriminatorValue = derived.TypeDiscriminator switch
+            {
+                string s => s,
+                int i => i.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                _ => null,
+            };
+
+            if (discriminatorValue is not null)
             {
                 derivedSchema.Properties ??= new Dictionary<string, OpenApiSchema>();
-                derivedSchema.Properties[polymorphicAttr.TypeDiscriminatorPropertyName] = new OpenApiSchema
+                derivedSchema.Properties[discriminatorPropertyName] = new OpenApiSchema
                 {
-                    Type = "string",
-                    Enum = [new Microsoft.OpenApi.Any.OpenApiString(discriminatorValue)],
+                    Type = derived.TypeDiscriminator is string ? "string" : "integer",
+                    Enum = derived.TypeDiscriminator is string
+                        ? [new Microsoft.OpenApi.Any.OpenApiString(discriminatorValue)]
+                        : [new Microsoft.OpenApi.Any.OpenApiInteger(int.Parse(discriminatorValue, System.Globalization.CultureInfo.InvariantCulture))],
                 };
 
                 mapping[discriminatorValue] = $"#/components/schemas/{schemaName}";
@@ -647,7 +670,7 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             OneOf = schemas,
             Discriminator = new OpenApiDiscriminator
             {
-                PropertyName = polymorphicAttr.TypeDiscriminatorPropertyName,
+                PropertyName = discriminatorPropertyName,
                 Mapping = mapping.Count > 0 ? mapping : null,
             },
         };
