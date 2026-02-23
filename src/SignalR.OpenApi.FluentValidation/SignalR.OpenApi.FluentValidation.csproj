@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation" VersionOverride="11.9.0" />
   </ItemGroup>
 
   <ItemGroup>

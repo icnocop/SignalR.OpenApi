@@ -15,6 +15,14 @@ on:
         options:
           - 'false'
           - 'true'
+      publishRelease:
+        description: 'Publish as stable (non-prerelease) version'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   build:
@@ -40,42 +48,55 @@ jobs:
         $buildYear = [int]$currentDate.ToString("yyyy")
         $currentMonthDay = $currentDate.ToString("MMdd")
         $buildVersion = (($buildYear - $firstBuildYear) * 1200) + [int]$currentMonthDay
-        $version = "$majorVersion.$minorVersion.$buildVersion.${{ github.run_number }}"
-        echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf-8 -Append
-        Write-Host "Version: $version"
+        $dateStamp = $currentDate.ToString("yyyyMMdd")
+        $timeStamp = $currentDate.ToString("HHmmss")
+        $runNumber = "${{ github.run_number }}"
+        $baseVersion = "$majorVersion.$minorVersion.$buildVersion"
+        $assemblyVersion = "$baseVersion.$runNumber"
+        $isRelease = "${{ github.event.inputs.publishRelease }}" -eq "true"
+        if ($isRelease) {
+          $packageVersion = $baseVersion
+        } else {
+          $packageVersion = "$baseVersion-ci.$dateStamp.$timeStamp.$runNumber"
+        }
+        echo "VERSION=$assemblyVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf-8 -Append
+        echo "PACKAGE_VERSION=$packageVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf-8 -Append
+        echo "IS_RELEASE=$isRelease" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf-8 -Append
+        Write-Host "Assembly version: $assemblyVersion"
+        Write-Host "Package version: $packageVersion"
 
     - name: Restore
       run: dotnet restore SignalR.OpenApi.slnx
 
     - name: Build
-      run: dotnet build SignalR.OpenApi.slnx --configuration Release --no-restore /p:Version=${{ env.VERSION }}
+      run: dotnet build SignalR.OpenApi.slnx --configuration Release --no-restore /p:Version=${{ env.VERSION }} /p:PackageVersion=${{ env.PACKAGE_VERSION }}
 
     - name: Test
       run: dotnet test SignalR.OpenApi.slnx --configuration Release --no-build --verbosity normal --filter "TestCategory!=Playwright"
 
     - name: Pack
-      run: dotnet pack SignalR.OpenApi.slnx --configuration Release --no-build -o ./artifacts /p:Version=${{ env.VERSION }}
+      run: dotnet pack SignalR.OpenApi.slnx --configuration Release --no-build -o ./artifacts /p:PackageVersion=${{ env.PACKAGE_VERSION }}
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: SignalR.OpenApi.${{ env.VERSION }}
+        name: SignalR.OpenApi.${{ env.PACKAGE_VERSION }}
         path: ./artifacts/*.nupkg
 
     - name: Publish to NuGet
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.publishNuGet == 'true'
       run: |
         dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
-        git tag v${{ env.VERSION }}
-        git push origin v${{ env.VERSION }}
+        git tag v${{ env.PACKAGE_VERSION }}
+        git push origin v${{ env.PACKAGE_VERSION }}
 
     - name: Create GitHub Release
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.publishNuGet == 'true'
       uses: softprops/action-gh-release@v2
       with:
-        name: v${{ env.VERSION }}
-        tag_name: v${{ env.VERSION }}
+        name: v${{ env.PACKAGE_VERSION }}
+        tag_name: v${{ env.PACKAGE_VERSION }}
         generate_release_notes: true
         draft: true
-        prerelease: false
+        prerelease: ${{ env.IS_RELEASE != 'True' }}
         files: ./artifacts/*.nupkg
