@@ -723,9 +723,17 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             return;
         }
 
+        var discriminatorPropertyName = polymorphicAttr.TypeDiscriminatorPropertyName ?? "$type";
+
         foreach (var derived in derivedTypes)
         {
-            var discriminatorValue = derived.TypeDiscriminator as string;
+            var discriminatorValue = derived.TypeDiscriminator switch
+            {
+                string s => s,
+                int i => i.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                _ => null,
+            };
+
             if (discriminatorValue is null)
             {
                 continue;
@@ -736,11 +744,15 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
             // Add the discriminator property as a read-only constant.
             derivedSchema.Properties ??= new Dictionary<string, OpenApiSchema>();
-            derivedSchema.Properties[polymorphicAttr.TypeDiscriminatorPropertyName] = new OpenApiSchema
+            derivedSchema.Properties[discriminatorPropertyName] = new OpenApiSchema
             {
-                Type = "string",
-                Enum = [new Microsoft.OpenApi.Any.OpenApiString(discriminatorValue)],
-                Default = new Microsoft.OpenApi.Any.OpenApiString(discriminatorValue),
+                Type = derived.TypeDiscriminator is string ? "string" : "integer",
+                Enum = derived.TypeDiscriminator is string
+                    ? [new Microsoft.OpenApi.Any.OpenApiString(discriminatorValue)]
+                    : [new Microsoft.OpenApi.Any.OpenApiInteger(int.Parse(discriminatorValue, System.Globalization.CultureInfo.InvariantCulture))],
+                Default = derived.TypeDiscriminator is string
+                    ? new Microsoft.OpenApi.Any.OpenApiString(discriminatorValue)
+                    : new Microsoft.OpenApi.Any.OpenApiInteger(int.Parse(discriminatorValue, System.Globalization.CultureInfo.InvariantCulture)),
                 ReadOnly = true,
             };
 
@@ -784,7 +796,7 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
                 isClientEvent: false,
                 parameterCount: 1,
                 flattenedBody: true,
-                discriminatorProperty: polymorphicAttr.TypeDiscriminatorPropertyName,
+                discriminatorProperty: discriminatorPropertyName,
                 discriminatorValue: discriminatorValue);
 
             document.Paths[subPathKey] = new OpenApiPathItem
