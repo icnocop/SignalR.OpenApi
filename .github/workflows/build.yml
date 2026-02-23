@@ -48,8 +48,7 @@ jobs:
         $buildYear = [int]$currentDate.ToString("yyyy")
         $currentMonthDay = $currentDate.ToString("MMdd")
         $buildVersion = (($buildYear - $firstBuildYear) * 1200) + [int]$currentMonthDay
-        $dateStamp = $currentDate.ToString("yyyyMMdd")
-        $timeStamp = $currentDate.ToString("HHmmss")
+        $dateTimeStamp = $currentDate.ToString("yyyy-MM-dd'T'HH-mm-ss'Z'")
         $runNumber = "${{ github.run_number }}"
         $baseVersion = "$majorVersion.$minorVersion.$buildVersion"
         $assemblyVersion = "$baseVersion.$runNumber"
@@ -57,7 +56,7 @@ jobs:
         if ($isRelease) {
           $packageVersion = $baseVersion
         } else {
-          $packageVersion = "$baseVersion-ci.$dateStamp.$timeStamp.$runNumber"
+          $packageVersion = "$baseVersion-ci.$dateTimeStamp.$runNumber"
         }
         echo "VERSION=$assemblyVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf-8 -Append
         echo "PACKAGE_VERSION=$packageVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf-8 -Append
