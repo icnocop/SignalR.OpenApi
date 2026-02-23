@@ -654,6 +654,20 @@ public class SignalROpenApiDocumentGeneratorTests
         Assert.IsFalse(flattenedBody, "flattenedBody should be false for primitive parameters.");
     }
 
+    /// <summary>
+    /// Verifies that self-referencing types do not cause a StackOverflowException.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_SelfReferencingType_DoesNotStackOverflow()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsTrue(doc.Paths.ContainsKey("/hubs/CircularRef/ProcessNode"));
+        Assert.IsTrue(doc.Components.Schemas.ContainsKey("TreeNode"));
+    }
+
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(
         Action<SignalROpenApiOptions>? configure = null)
     {

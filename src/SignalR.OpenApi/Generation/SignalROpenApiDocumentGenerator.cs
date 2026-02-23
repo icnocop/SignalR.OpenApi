@@ -20,6 +20,7 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
     private readonly SignalROpenApiOptions options;
     private readonly IServiceProvider serviceProvider;
     private readonly IReadOnlyList<ISignalROpenApiSchemaProcessor> schemaProcessors;
+    private readonly Dictionary<Type, string> schemaRegistry = [];
     private OpenApiDocument? currentDocument;
 
     /// <summary>
@@ -57,6 +58,7 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         };
 
         this.currentDocument = document;
+        this.schemaRegistry.Clear();
 
         var requiresAuth = false;
 
@@ -510,12 +512,27 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             };
         }
 
-        // Complex object
-        return CreateObjectSchema(type);
+        // Complex object — check for circular references
+        if (this.schemaRegistry.TryGetValue(type, out var schemaName))
+        {
+            return new OpenApiSchema
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.Schema,
+                    Id = schemaName,
+                },
+            };
+        }
+
+        return this.CreateObjectSchema(type);
     }
 
     private OpenApiSchema CreateObjectSchema(Type type)
     {
+        var typeName = type.Name;
+        this.schemaRegistry[type] = typeName;
+
         var schema = new OpenApiSchema
         {
             Type = "object",
@@ -550,6 +567,11 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         }
 
         this.ApplySchemaProcessors(schema, type);
+
+        if (this.currentDocument is not null)
+        {
+            this.currentDocument.Components.Schemas[typeName] = schema;
+        }
 
         return schema;
     }

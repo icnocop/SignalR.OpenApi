@@ -96,6 +96,6 @@ jobs:
         name: v${{ env.PACKAGE_VERSION }}
         tag_name: v${{ env.PACKAGE_VERSION }}
         generate_release_notes: true
-        draft: true
+        draft: false
         prerelease: ${{ env.IS_RELEASE != 'True' }}
         files: ./artifacts/*.nupkg
