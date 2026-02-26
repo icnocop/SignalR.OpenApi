@@ -758,6 +758,61 @@ public class SignalROpenApiDocumentGeneratorTests
         Assert.IsTrue(rectExamples.ContainsKey("LargeRectangle"), "Rectangle sub-endpoint should contain LargeRectangle example.");
     }
 
+    /// <summary>
+    /// Verifies that form-urlencoded schema properties have example values
+    /// set from the first example provider value.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_FormSchema_HasPropertyExamplesFromProvider()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var op = doc.Paths["/hubs/Example/CreateOrder"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        Assert.IsTrue(
+            op.RequestBody.Content.ContainsKey("application/x-www-form-urlencoded"),
+            "CreateOrder should have form-urlencoded content type.");
+
+        var formSchema = op.RequestBody.Content["application/x-www-form-urlencoded"].Schema;
+        Assert.IsNotNull(formSchema.Properties, "Form schema should have properties.");
+
+        // First example from OrderRequestExamplesProvider: Product="Widget", Quantity=1, Email="alice@example.com"
+        Assert.IsNotNull(formSchema.Properties["product"].Example, "Product property should have an example.");
+        Assert.IsNotNull(formSchema.Properties["quantity"].Example, "Quantity property should have an example.");
+        Assert.IsNotNull(formSchema.Properties["email"].Example, "Email property should have an example.");
+    }
+
+    /// <summary>
+    /// Verifies that polymorphic sub-endpoint form schemas have property examples
+    /// filtered by derived type, and that readOnly discriminator properties are skipped.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_PolymorphicSubEndpoint_FormSchemaHasFilteredPropertyExamples()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        // Circle sub-endpoint form schema should have circle-specific examples.
+        var circleOp = doc.Paths["/hubs/Polymorphic/DrawShape/circle"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+        Assert.IsTrue(
+            circleOp.RequestBody.Content.ContainsKey("application/x-www-form-urlencoded"),
+            "Circle sub-endpoint should have form-urlencoded content type.");
+
+        var circleFormSchema = circleOp.RequestBody.Content["application/x-www-form-urlencoded"].Schema;
+        Assert.IsNotNull(circleFormSchema.Properties, "Circle form schema should have properties.");
+        Assert.IsNotNull(circleFormSchema.Properties["color"].Example, "Color property should have an example.");
+        Assert.IsNotNull(circleFormSchema.Properties["radius"].Example, "Radius property should have an example.");
+
+        // Discriminator property should NOT have an example (readOnly).
+        Assert.IsTrue(circleFormSchema.Properties["kind"].ReadOnly, "Discriminator should be readOnly.");
+        Assert.IsNull(circleFormSchema.Properties["kind"].Example, "ReadOnly discriminator should not have an example.");
+    }
+
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(
         Action<SignalROpenApiOptions>? configure = null)
     {

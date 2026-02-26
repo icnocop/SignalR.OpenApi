@@ -782,6 +782,8 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
                     ReadOnly = true,
                 };
 
+                this.ApplyPropertyExamplesForDerivedType(formSchema, method, derived.DerivedType);
+
                 content["application/x-www-form-urlencoded"] = new OpenApiMediaType
                 {
                     Schema = formSchema,
@@ -907,6 +909,8 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
                 {
                     Schema = requestSchema,
                 };
+
+                this.ApplyPropertyExamplesFromProviders(requestSchema, method);
             }
 
             operation.RequestBody = new OpenApiRequestBody
@@ -1134,6 +1138,44 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         }
     }
 
+    private void ApplyPropertyExamplesFromProviders(OpenApiSchema schema, SignalRMethodInfo method)
+    {
+        var value = this.ResolveFirstExampleValue(method.RequestExampleProviderTypes);
+        if (value is not null)
+        {
+            this.ApplyPropertyExamples(schema, value);
+        }
+    }
+
+    private void ApplyPropertyExamplesForDerivedType(OpenApiSchema schema, SignalRMethodInfo method, Type derivedType)
+    {
+        var value = this.ResolveFirstExampleValueForDerivedType(method.RequestExampleProviderTypes, derivedType);
+        if (value is not null)
+        {
+            this.ApplyPropertyExamples(schema, value);
+        }
+    }
+
+    private void ApplyPropertyExamples(OpenApiSchema schema, object exampleValue)
+    {
+        var json = JsonSerializer.Serialize(exampleValue, this.options.JsonSerializerOptions);
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind != JsonValueKind.Object || schema.Properties is null)
+        {
+            return;
+        }
+
+        using var enumerator = doc.RootElement.EnumerateObject();
+        while (enumerator.MoveNext())
+        {
+            if (schema.Properties.TryGetValue(enumerator.Current.Name, out var propSchema)
+                && !propSchema.ReadOnly)
+            {
+                propSchema.Example = ConvertJsonElement(enumerator.Current.Value);
+            }
+        }
+    }
+
     private Dictionary<string, OpenApiExample> ResolveExamples(Type providerType)
     {
         var result = new Dictionary<string, OpenApiExample>();
@@ -1281,5 +1323,82 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         }
 
         return result;
+    }
+
+    private object? ResolveFirstExampleValue(IReadOnlyList<Type> providerTypes)
+    {
+        foreach (var providerType in providerTypes)
+        {
+            var value = this.GetFirstExampleValueFromProvider(providerType);
+            if (value is not null)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private object? ResolveFirstExampleValueForDerivedType(IReadOnlyList<Type> providerTypes, Type derivedType)
+    {
+        foreach (var providerType in providerTypes)
+        {
+            var value = this.GetFirstExampleValueFromProvider(providerType, derivedType);
+            if (value is not null)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private object? GetFirstExampleValueFromProvider(Type providerType, Type? filterType = null)
+    {
+        object? provider = null;
+        try
+        {
+            provider = this.serviceProvider.GetService(providerType);
+        }
+        catch (InvalidOperationException)
+        {
+            // Provider not registered in DI
+        }
+
+        provider ??= Activator.CreateInstance(providerType);
+
+        if (provider is null)
+        {
+            return null;
+        }
+
+        var providerInterface = providerType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType
+                && i.GetGenericTypeDefinition() == typeof(ISignalROpenApiExamplesProvider<>));
+
+        var getExamplesMethod = providerInterface?.GetMethod(nameof(ISignalROpenApiExamplesProvider<object>.GetExamples));
+        var examples = getExamplesMethod?.Invoke(provider, null);
+        if (examples is null)
+        {
+            return null;
+        }
+
+        foreach (var exampleObj in (System.Collections.IEnumerable)examples)
+        {
+            var valueProperty = exampleObj.GetType().GetProperty(nameof(SignalROpenApiExample<object>.Value));
+            var value = valueProperty?.GetValue(exampleObj);
+
+            if (value is null)
+            {
+                continue;
+            }
+
+            if (filterType is null || filterType.IsInstanceOfType(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 }
