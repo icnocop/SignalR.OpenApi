@@ -724,6 +724,40 @@ public class SignalROpenApiDocumentGeneratorTests
         Assert.IsTrue(jsonSchema.Properties["kind"].ReadOnly, "Discriminator should be read-only when excluded from examples.");
     }
 
+    /// <summary>
+    /// Verifies that polymorphic sub-endpoints include only examples matching the derived type.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_PolymorphicSubEndpoint_IncludesFilteredExamples()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        // Main endpoint should have all examples.
+        var mainOp = doc.Paths["/hubs/Polymorphic/DrawShape"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+        var mainExamples = mainOp.RequestBody.Content["application/json"].Examples;
+        Assert.IsNotNull(mainExamples, "Main endpoint should have examples.");
+        Assert.AreEqual(2, mainExamples.Count, "Main endpoint should have both circle and rectangle examples.");
+
+        // Circle sub-endpoint should only have the circle example.
+        var circleOp = doc.Paths["/hubs/Polymorphic/DrawShape/circle"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+        var circleExamples = circleOp.RequestBody.Content["application/json"].Examples;
+        Assert.IsNotNull(circleExamples, "Circle sub-endpoint should have examples.");
+        Assert.AreEqual(1, circleExamples.Count, "Circle sub-endpoint should have only circle example.");
+        Assert.IsTrue(circleExamples.ContainsKey("SmallCircle"), "Circle sub-endpoint should contain SmallCircle example.");
+
+        // Rectangle sub-endpoint should only have the rectangle example.
+        var rectOp = doc.Paths["/hubs/Polymorphic/DrawShape/rectangle"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+        var rectExamples = rectOp.RequestBody.Content["application/json"].Examples;
+        Assert.IsNotNull(rectExamples, "Rectangle sub-endpoint should have examples.");
+        Assert.AreEqual(1, rectExamples.Count, "Rectangle sub-endpoint should have only rectangle example.");
+        Assert.IsTrue(rectExamples.ContainsKey("LargeRectangle"), "Rectangle sub-endpoint should contain LargeRectangle example.");
+    }
+
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(
         Action<SignalROpenApiOptions>? configure = null)
     {

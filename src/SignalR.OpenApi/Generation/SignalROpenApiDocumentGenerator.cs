@@ -761,6 +761,7 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             derivedSchema.Properties[discriminatorPropertyName] = discriminatorSchema;
 
             var jsonMediaType = new OpenApiMediaType { Schema = derivedSchema };
+            this.ApplyRequestExamplesForDerivedType(jsonMediaType, method, derived.DerivedType);
 
             var content = new Dictionary<string, OpenApiMediaType>
             {
@@ -1085,6 +1086,30 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         }
     }
 
+    private void ApplyRequestExamplesForDerivedType(OpenApiMediaType mediaType, SignalRMethodInfo method, Type derivedType)
+    {
+        if (method.RequestExampleProviderTypes.Count == 0)
+        {
+            return;
+        }
+
+        var examples = new Dictionary<string, OpenApiExample>();
+
+        foreach (var providerType in method.RequestExampleProviderTypes)
+        {
+            var resolvedExamples = this.ResolveExamplesForDerivedType(providerType, derivedType);
+            foreach (var example in resolvedExamples)
+            {
+                examples[example.Key] = example.Value;
+            }
+        }
+
+        if (examples.Count > 0)
+        {
+            mediaType.Examples = examples;
+        }
+    }
+
     private void ApplyResponseExamples(OpenApiMediaType mediaType, SignalRMethodInfo method)
     {
         if (method.ResponseExampleProviderTypes.Count == 0)
@@ -1180,6 +1205,79 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             }
 
             result[name] = openApiExample;
+        }
+
+        return result;
+    }
+
+    private Dictionary<string, OpenApiExample> ResolveExamplesForDerivedType(Type providerType, Type derivedType)
+    {
+        var result = new Dictionary<string, OpenApiExample>();
+
+        object? provider = null;
+        try
+        {
+            provider = this.serviceProvider.GetService(providerType);
+        }
+        catch (InvalidOperationException)
+        {
+            // Provider not registered in DI
+        }
+
+        provider ??= Activator.CreateInstance(providerType);
+
+        if (provider is null)
+        {
+            return result;
+        }
+
+        var providerInterface = providerType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType
+                && i.GetGenericTypeDefinition() == typeof(ISignalROpenApiExamplesProvider<>));
+
+        if (providerInterface is null)
+        {
+            return result;
+        }
+
+        var getExamplesMethod = providerInterface.GetMethod(nameof(ISignalROpenApiExamplesProvider<object>.GetExamples));
+        if (getExamplesMethod is null)
+        {
+            return result;
+        }
+
+        var examples = getExamplesMethod.Invoke(provider, null);
+        if (examples is null)
+        {
+            return result;
+        }
+
+        foreach (var exampleObj in (System.Collections.IEnumerable)examples)
+        {
+            var exampleType = exampleObj.GetType();
+            var valueProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Value));
+            var value = valueProperty?.GetValue(exampleObj);
+
+            // Only include examples whose value matches the derived type.
+            if (value is null || !derivedType.IsInstanceOfType(value))
+            {
+                continue;
+            }
+
+            var nameProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Name));
+            var summaryProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Summary));
+            var descriptionProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Description));
+
+            var name = nameProperty?.GetValue(exampleObj) as string ?? "example";
+            var summary = summaryProperty?.GetValue(exampleObj) as string;
+            var description = descriptionProperty?.GetValue(exampleObj) as string;
+
+            result[name] = new OpenApiExample
+            {
+                Summary = summary,
+                Description = description,
+                Value = ConvertToOpenApiAny(value),
+            };
         }
 
         return result;
