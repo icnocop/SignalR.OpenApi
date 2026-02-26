@@ -517,6 +517,14 @@ var SignalROpenApiPlugin = function (system) {
                 props.operationProps = props.operationProps.set("method", "invoke");
               }
             }
+
+            // Strip "Async" suffix from the display path if configured
+            var configs = system.getConfigs ? system.getConfigs() : {};
+            var stripAsync = configs.signalRStripAsyncSuffix !== false;
+            if (stripAsync && path.match(/Async(\/[^\/]+)?$/)) {
+              var displayPath = path.replace(/Async(\/[^\/]+)?$/, "$1");
+              props.operationProps = props.operationProps.set("path", displayPath);
+            }
           }
 
           return React.createElement(Original, props);

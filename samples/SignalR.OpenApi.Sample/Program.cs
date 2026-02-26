@@ -15,9 +15,17 @@ builder.Services.AddSignalROpenApi(options =>
 {
     options.DocumentTitle = "SignalR.OpenApi Sample";
     options.DocumentVersion = "v1";
+    options.IncludeDiscriminatorInExamples = true;
+
+    // Default: camelCase (matches ASP.NET Core default)
+    // For PascalCase:
+    options.JsonSerializerOptions.PropertyNamingPolicy = null;
 });
 builder.Services.AddSignalRFluentValidation();
-builder.Services.AddSignalRSwaggerUi();
+builder.Services.AddSignalRSwaggerUi(options =>
+{
+    options.StripAsyncSuffix = true;
+});
 
 var app = builder.Build();
 

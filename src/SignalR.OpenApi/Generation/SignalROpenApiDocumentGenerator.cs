@@ -316,34 +316,6 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
                 .All(p => !IsComplexObjectType(p.PropertyType));
     }
 
-    private static string ToCamelCase(string value)
-    {
-        if (string.IsNullOrEmpty(value) || char.IsLower(value[0]))
-        {
-            return value;
-        }
-
-        return char.ToLowerInvariant(value[0]) + value[1..];
-    }
-
-    private static Microsoft.OpenApi.Any.IOpenApiAny ConvertToOpenApiAny(object value)
-    {
-        var simple = CreateOpenApiAnyValue(value);
-        if (simple is not null)
-        {
-            return simple;
-        }
-
-        // For complex types, serialize to JSON and parse into OpenApiAny structure
-        var json = JsonSerializer.Serialize(value, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        });
-
-        return ParseJsonToOpenApiAny(json);
-    }
-
     private static Microsoft.OpenApi.Any.IOpenApiAny ParseJsonToOpenApiAny(string json)
     {
         using var doc = JsonDocument.Parse(json);
@@ -389,6 +361,31 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         }
 
         return arr;
+    }
+
+    private string ConvertPropertyName(string value)
+    {
+        var policy = this.options.JsonSerializerOptions.PropertyNamingPolicy;
+        if (policy is null)
+        {
+            return value;
+        }
+
+        return policy.ConvertName(value);
+    }
+
+    private Microsoft.OpenApi.Any.IOpenApiAny ConvertToOpenApiAny(object value)
+    {
+        var simple = CreateOpenApiAnyValue(value);
+        if (simple is not null)
+        {
+            return simple;
+        }
+
+        // For complex types, serialize to JSON and parse into OpenApiAny structure
+        var json = JsonSerializer.Serialize(value, this.options.JsonSerializerOptions);
+
+        return ParseJsonToOpenApiAny(json);
     }
 
     private OpenApiSchema CreateSchemaForType(Type type)
@@ -551,7 +548,7 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             }
 
             var propName = prop.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
-                ?? ToCamelCase(prop.Name);
+                ?? this.ConvertPropertyName(prop.Name);
 
             var propSchema = this.CreateSchemaForType(prop.PropertyType);
             propSchema.Description = prop.GetCustomAttribute<DescriptionAttribute>()?.Description;
@@ -742,9 +739,8 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             var subPathKey = $"{parentPathKey}/{discriminatorValue}";
             var derivedSchema = this.CreateObjectSchema(derived.DerivedType);
 
-            // Add the discriminator property as a read-only constant.
-            derivedSchema.Properties ??= new Dictionary<string, OpenApiSchema>();
-            derivedSchema.Properties[discriminatorPropertyName] = new OpenApiSchema
+            // Build the discriminator schema entry.
+            var discriminatorSchema = new OpenApiSchema
             {
                 Type = derived.TypeDiscriminator is string ? "string" : "integer",
                 Enum = derived.TypeDiscriminator is string
@@ -753,8 +749,16 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
                 Default = derived.TypeDiscriminator is string
                     ? new Microsoft.OpenApi.Any.OpenApiString(discriminatorValue)
                     : new Microsoft.OpenApi.Any.OpenApiInteger(int.Parse(discriminatorValue, System.Globalization.CultureInfo.InvariantCulture)),
-                ReadOnly = true,
             };
+
+            // When IncludeDiscriminatorInExamples is false, hide from all examples.
+            if (!this.options.IncludeDiscriminatorInExamples)
+            {
+                discriminatorSchema.ReadOnly = true;
+            }
+
+            derivedSchema.Properties ??= new Dictionary<string, OpenApiSchema>();
+            derivedSchema.Properties[discriminatorPropertyName] = discriminatorSchema;
 
             var jsonMediaType = new OpenApiMediaType { Schema = derivedSchema };
 
@@ -764,11 +768,22 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             };
 
             // Offer form-urlencoded when all properties are flat.
+            // Use a separate schema that hides the discriminator from form inputs.
             if (HasOnlyFlatProperties(derived.DerivedType))
             {
+                var formSchema = this.CreateObjectSchema(derived.DerivedType);
+                formSchema.Properties ??= new Dictionary<string, OpenApiSchema>();
+                formSchema.Properties[discriminatorPropertyName] = new OpenApiSchema
+                {
+                    Type = discriminatorSchema.Type,
+                    Enum = discriminatorSchema.Enum,
+                    Default = discriminatorSchema.Default,
+                    ReadOnly = true,
+                };
+
                 content["application/x-www-form-urlencoded"] = new OpenApiMediaType
                 {
-                    Schema = derivedSchema,
+                    Schema = formSchema,
                 };
             }
 

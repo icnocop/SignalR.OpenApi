@@ -30,4 +30,11 @@ public class SignalRSwaggerUiOptions
     /// for Windows authentication. Defaults to <see langword="false"/>.
     /// </summary>
     public bool UseDefaultCredentials { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to strip the "Async" suffix
+    /// from method names in the UI display. The underlying SignalR invocation
+    /// always uses the real method name. Defaults to <see langword="true"/>.
+    /// </summary>
+    public bool StripAsyncSuffix { get; set; } = true;
 }

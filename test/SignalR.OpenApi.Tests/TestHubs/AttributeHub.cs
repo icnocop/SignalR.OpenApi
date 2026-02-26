@@ -61,6 +61,15 @@ public class AttributeHub : Hub
     }
 
     /// <summary>
+    /// Fetches data asynchronously.
+    /// </summary>
+    /// <returns>The data.</returns>
+    public Task<string> FetchDataAsync()
+    {
+        return Task.FromResult("data");
+    }
+
+    /// <summary>
     /// Method with validated input.
     /// </summary>
     /// <param name="input">The input model.</param>

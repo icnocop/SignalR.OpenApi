@@ -51,6 +51,9 @@ public static class SwaggerUiApplicationBuilderExtensions
             c.ConfigObject.Plugins ??= [];
             c.ConfigObject.Plugins.Add("SignalROpenApiPlugin");
 
+            // Pass SignalR options to the JS plugin via ConfigObject
+            c.ConfigObject.AdditionalItems["signalRStripAsyncSuffix"] = options.StripAsyncSuffix;
+
             // Configure auth UI for JWT Bearer (standard SwaggerUI behavior)
             c.OAuthUsePkce();
         });

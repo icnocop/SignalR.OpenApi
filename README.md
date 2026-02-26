@@ -61,7 +61,15 @@ builder.Services.AddSignalROpenApi(options =>
 {
     options.DocumentTitle = "My SignalR API";
     options.DocumentVersion = "v1";
-    options.StripAsyncSuffix = true;
+
+    // Include type discriminator in JSON examples for polymorphic sub-endpoints (default: true)
+    options.IncludeDiscriminatorInExamples = true;
+
+    // Configure JSON property naming (default: camelCase)
+    options.JsonSerializerOptions = new System.Text.Json.JsonSerializerOptions
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+    };
 });
 
 builder.Services.AddSignalRSwaggerUi(options =>
@@ -69,6 +77,7 @@ builder.Services.AddSignalRSwaggerUi(options =>
     options.RoutePrefix = "signalr-swagger";    // SwaggerUI route (default)
     options.SpecUrl = "/openapi/signalr-v1.json"; // Spec endpoint (default)
     options.DocumentTitle = "SignalR API";       // Browser tab title (default)
+    options.StripAsyncSuffix = true;             // Strip "Async" from display names (default)
 });
 ```
 
@@ -151,6 +160,8 @@ public class AlertNotification : Notification
 ```
 
 > **Note**: `System.Text.Json` polymorphic deserialization requires the type discriminator property to appear **first** in the JSON object. The SwaggerUI plugin handles this automatically for sub-endpoints.
+>
+> By default, `IncludeDiscriminatorInExamples = true` makes the discriminator visible in JSON request examples but hidden in form-urlencoded inputs. Set to `false` to hide the discriminator from all examples (the plugin still injects it at invocation time).
 
 ## Supported Attributes
 

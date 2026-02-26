@@ -229,20 +229,20 @@ public class ReflectionHubDiscovererTests
     }
 
     /// <summary>
-    /// Verifies StripAsyncSuffix option works for operation IDs.
+    /// Verifies method names and operation IDs preserve the Async suffix
+    /// since stripping is a UI-only concern.
     /// </summary>
     [TestMethod]
-    public void DiscoverHubs_StripAsyncSuffix_OperationId()
+    public void DiscoverHubs_PreservesAsyncSuffixInNameAndOperationId()
     {
-        var discoverer = CreateDiscoverer(o => o.StripAsyncSuffix = true);
+        var discoverer = CreateDiscoverer();
         var hubs = discoverer.DiscoverHubs();
 
         var attributeHub = hubs.First(h => h.HubType == typeof(AttributeHub));
+        var fetchData = attributeHub.Methods.First(m => m.Name == "FetchDataAsync");
 
-        // GetUserDetailsAsync has [EndpointName("GetUserDetails")] so its Name is "GetUserDetails"
-        // but GetUserLegacy has no endpoint name so its operation ID should NOT end with Async
-        var legacy = attributeHub.Methods.First(m => m.Name == "GetUserLegacy");
-        Assert.IsFalse(legacy.OperationId!.EndsWith("Async", StringComparison.Ordinal));
+        Assert.AreEqual("FetchDataAsync", fetchData.Name);
+        Assert.AreEqual("Attribute_FetchDataAsync", fetchData.OperationId);
     }
 
     /// <summary>
@@ -287,6 +287,26 @@ public class ReflectionHubDiscovererTests
         Assert.IsFalse(basic.Methods.Any(m => m.Name == "OnConnectedAsync"));
         Assert.IsFalse(basic.Methods.Any(m => m.Name == "OnDisconnectedAsync"));
         Assert.IsFalse(basic.Methods.Any(m => m.Name == "Dispose"));
+    }
+
+    /// <summary>
+    /// Verifies that XML docs are resolved from interface methods via inheritdoc.
+    /// </summary>
+    [TestMethod]
+    public void DiscoverHubs_InheritDoc_ResolvesXmlDocsFromInterface()
+    {
+        var discoverer = CreateDiscoverer();
+        var hubs = discoverer.DiscoverHubs();
+
+        var hub = hubs.First(h => h.HubType == typeof(InheritDocHub));
+        Assert.AreEqual("Defines the server-side methods for the inherited-doc hub.", hub.Summary);
+
+        var greet = hub.Methods.First(m => m.Name == "Greet");
+        Assert.AreEqual("Greets a user by name.", greet.Summary);
+        Assert.AreEqual("A greeting message.", greet.ReturnDescription);
+
+        var nameParam = greet.Parameters.First(p => p.Name == "name");
+        Assert.AreEqual("The user's name.", nameParam.Description);
     }
 
     private static ReflectionHubDiscoverer CreateDiscoverer(Action<SignalROpenApiOptions>? configure = null)

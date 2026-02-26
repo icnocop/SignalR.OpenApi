@@ -54,6 +54,7 @@ public class SwaggerUiIntegrationTests
         Assert.AreEqual("/openapi/signalr-v1.json", options.SpecUrl);
         Assert.AreEqual("SignalR API", options.DocumentTitle);
         Assert.IsFalse(options.UseDefaultCredentials);
+        Assert.IsTrue(options.StripAsyncSuffix);
     }
 
     /// <summary>

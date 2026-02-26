@@ -1,6 +1,7 @@
 // Copyright (c) SignalR.OpenApi Contributors. Licensed under the MIT License.
 
 using System.Reflection;
+using System.Text.Json;
 
 namespace SignalR.OpenApi;
 
@@ -55,16 +56,31 @@ public sealed class SignalROpenApiOptions
     public Func<MethodInfo, bool>? MethodFilter { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether to strip the "Async" suffix from method names
-    /// when generating operation IDs.
-    /// Default is <see langword="true"/>.
-    /// </summary>
-    public bool StripAsyncSuffix { get; set; } = true;
-
-    /// <summary>
     /// Gets or sets the hub route path map. Maps hub types to their route paths.
     /// Populated automatically from <c>MapHub&lt;T&gt;()</c> calls when using endpoint routing,
     /// or can be configured manually.
     /// </summary>
     public IDictionary<Type, string> HubRoutes { get; set; } = new Dictionary<Type, string>();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the type discriminator property
+    /// should be visible in the JSON request body examples for polymorphic
+    /// sub-endpoints. When <see langword="true"/>, the discriminator appears
+    /// in the JSON example but remains hidden from form-urlencoded inputs.
+    /// Defaults to <see langword="true"/>.
+    /// </summary>
+    public bool IncludeDiscriminatorInExamples { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the <see cref="JsonSerializerOptions"/> used for property naming
+    /// and example serialization in the generated OpenAPI document.
+    /// Defaults to camelCase naming, matching ASP.NET Core's default JSON behavior.
+    /// Set <see cref="JsonSerializerOptions.PropertyNamingPolicy"/> to <see langword="null"/>
+    /// for PascalCase property names.
+    /// </summary>
+    public JsonSerializerOptions JsonSerializerOptions { get; set; } = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
 }

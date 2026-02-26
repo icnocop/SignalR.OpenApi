@@ -241,17 +241,6 @@ public sealed class ReflectionHubDiscoverer : IHubDiscoverer
         return member.GetCustomAttribute<EndpointDescriptionAttribute>()?.Description;
     }
 
-    private static string GetMethodName(MethodInfo method)
-    {
-        var endpointName = method.GetCustomAttribute<EndpointNameAttribute>();
-        if (endpointName is not null)
-        {
-            return endpointName.EndpointName;
-        }
-
-        return method.Name;
-    }
-
     private static string GetXmlMemberName(MemberInfo member)
     {
         if (member is Type type)
@@ -297,6 +286,22 @@ public sealed class ReflectionHubDiscoverer : IHubDiscoverer
         result = Regex.Replace(result, @"\s{2,}", " ");
 
         return result.Trim();
+    }
+
+    private static string GetMethodName(MethodInfo method)
+    {
+        var endpointName = method.GetCustomAttribute<EndpointNameAttribute>();
+        if (endpointName is not null)
+        {
+            return endpointName.EndpointName;
+        }
+
+        return method.Name;
+    }
+
+    private static string GenerateOperationId(string hubName, MethodInfo method)
+    {
+        return $"{hubName}_{method.Name}";
     }
 
     private SignalRHubInfo CreateHubInfo(Type hubType)
@@ -362,7 +367,7 @@ public sealed class ReflectionHubDiscoverer : IHubDiscoverer
         {
             MethodInfo = method,
             Name = methodName,
-            OperationId = this.GenerateOperationId(hubName, method),
+            OperationId = GenerateOperationId(hubName, method),
             Summary = this.GetXmlSummary(method)
                 ?? method.GetCustomAttribute<EndpointSummaryAttribute>()?.Summary,
             Description = this.GetXmlRemarks(method)
@@ -386,17 +391,6 @@ public sealed class ReflectionHubDiscoverer : IHubDiscoverer
                 .Select(a => a.ExamplesProviderType)
                 .ToList(),
         };
-    }
-
-    private string GenerateOperationId(string hubName, MethodInfo method)
-    {
-        var methodName = method.Name;
-        if (this.options.StripAsyncSuffix && methodName.EndsWith("Async", StringComparison.Ordinal))
-        {
-            methodName = methodName[..^5];
-        }
-
-        return $"{hubName}_{methodName}";
     }
 
     private IReadOnlyList<SignalRParameterInfo> DiscoverParameters(MethodInfo method)
@@ -486,53 +480,117 @@ public sealed class ReflectionHubDiscoverer : IHubDiscoverer
 
     private string? GetXmlSummary(MemberInfo member)
     {
-        var ownerType = member as Type ?? member.DeclaringType ?? member.ReflectedType;
+        var resolved = this.ResolveInheritDoc(member);
+        var ownerType = resolved as Type ?? resolved.DeclaringType ?? resolved.ReflectedType;
         if (ownerType is null)
         {
             return null;
         }
 
         var nav = this.GetXmlDocNavigator(ownerType);
-        var memberName = GetXmlMemberName(member);
+        var memberName = GetXmlMemberName(resolved);
         var node = nav?.SelectSingleNode($"/doc/members/member[@name='{memberName}']/summary");
         return GetNodeText(node);
     }
 
     private string? GetXmlRemarks(MemberInfo member)
     {
-        var ownerType = member as Type ?? member.DeclaringType ?? member.ReflectedType;
+        var resolved = this.ResolveInheritDoc(member);
+        var ownerType = resolved as Type ?? resolved.DeclaringType ?? resolved.ReflectedType;
         if (ownerType is null)
         {
             return null;
         }
 
         var nav = this.GetXmlDocNavigator(ownerType);
-        var memberName = GetXmlMemberName(member);
+        var memberName = GetXmlMemberName(resolved);
         var node = nav?.SelectSingleNode($"/doc/members/member[@name='{memberName}']/remarks");
         return GetNodeText(node);
     }
 
     private string? GetXmlReturns(MethodInfo method)
     {
-        var nav = this.GetXmlDocNavigator(method.DeclaringType ?? method.ReflectedType!);
-        var memberName = GetXmlMemberName(method);
+        var resolved = this.ResolveInheritDoc(method) as MethodInfo ?? method;
+        var nav = this.GetXmlDocNavigator(resolved.DeclaringType ?? resolved.ReflectedType!);
+        var memberName = GetXmlMemberName(resolved);
         var node = nav?.SelectSingleNode($"/doc/members/member[@name='{memberName}']/returns");
         return GetNodeText(node);
     }
 
     private string? GetXmlParamDescription(MethodInfo method, string paramName)
     {
-        var nav = this.GetXmlDocNavigator(method.DeclaringType ?? method.ReflectedType!);
-        var memberName = GetXmlMemberName(method);
+        var resolved = this.ResolveInheritDoc(method) as MethodInfo ?? method;
+        var nav = this.GetXmlDocNavigator(resolved.DeclaringType ?? resolved.ReflectedType!);
+        var memberName = GetXmlMemberName(resolved);
         var node = nav?.SelectSingleNode($"/doc/members/member[@name='{memberName}']/param[@name='{paramName}']");
         return GetNodeText(node);
     }
 
     private string? GetXmlExample(MethodInfo method)
     {
-        var nav = this.GetXmlDocNavigator(method.DeclaringType ?? method.ReflectedType!);
-        var memberName = GetXmlMemberName(method);
+        var resolved = this.ResolveInheritDoc(method) as MethodInfo ?? method;
+        var nav = this.GetXmlDocNavigator(resolved.DeclaringType ?? resolved.ReflectedType!);
+        var memberName = GetXmlMemberName(resolved);
         var node = nav?.SelectSingleNode($"/doc/members/member[@name='{memberName}']/example");
         return GetNodeText(node);
+    }
+
+    private MemberInfo ResolveInheritDoc(MemberInfo member)
+    {
+        var ownerType = member as Type ?? member.DeclaringType ?? member.ReflectedType;
+        if (ownerType is null)
+        {
+            return member;
+        }
+
+        var nav = this.GetXmlDocNavigator(ownerType);
+        var memberName = GetXmlMemberName(member);
+        var memberNode = nav?.SelectSingleNode($"/doc/members/member[@name='{memberName}']");
+        if (memberNode is null)
+        {
+            return member;
+        }
+
+        var inheritDoc = memberNode.SelectSingleNode("inheritdoc");
+        if (inheritDoc is null)
+        {
+            return member;
+        }
+
+        // <inheritdoc cref="T:Namespace.IInterface"/> — resolve via cref.
+        var cref = inheritDoc.GetAttribute("cref", string.Empty);
+        if (!string.IsNullOrEmpty(cref) && member is Type)
+        {
+            // Strip the "T:" prefix to get the full type name.
+            var typeName = cref.StartsWith("T:", StringComparison.Ordinal) ? cref.Substring(2) : cref;
+            var resolved = ownerType.Assembly.GetType(typeName);
+            if (resolved is not null)
+            {
+                return resolved;
+            }
+        }
+
+        // <inheritdoc /> on a method — resolve via interface map.
+        if (member is MethodInfo method)
+        {
+            foreach (var iface in ownerType.GetInterfaces())
+            {
+                if (!iface.IsPublic)
+                {
+                    continue;
+                }
+
+                var map = ownerType.GetInterfaceMap(iface);
+                for (var i = 0; i < map.TargetMethods.Length; i++)
+                {
+                    if (map.TargetMethods[i] == method)
+                    {
+                        return map.InterfaceMethods[i];
+                    }
+                }
+            }
+        }
+
+        return member;
     }
 }

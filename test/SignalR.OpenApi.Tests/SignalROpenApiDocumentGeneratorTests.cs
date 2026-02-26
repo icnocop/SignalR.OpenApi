@@ -668,6 +668,62 @@ public class SignalROpenApiDocumentGeneratorTests
         Assert.IsTrue(doc.Components.Schemas.ContainsKey("TreeNode"));
     }
 
+    /// <summary>
+    /// Verifies that discriminator property is visible in JSON schema
+    /// when IncludeDiscriminatorInExamples is true (default).
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_IncludeDiscriminatorInExamples_DiscriminatorVisibleInJson()
+    {
+        var (discoverer, generator) = CreateServices(o => o.IncludeDiscriminatorInExamples = true);
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var circleOp = doc.Paths["/hubs/Polymorphic/DrawShape/circle"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        var jsonSchema = circleOp.RequestBody.Content["application/json"].Schema;
+        Assert.IsTrue(jsonSchema.Properties.ContainsKey("kind"), "JSON schema should contain discriminator.");
+        Assert.IsFalse(jsonSchema.Properties["kind"].ReadOnly, "Discriminator should not be read-only in JSON schema.");
+    }
+
+    /// <summary>
+    /// Verifies that discriminator property is hidden in form-urlencoded schema
+    /// even when IncludeDiscriminatorInExamples is true.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_IncludeDiscriminatorInExamples_DiscriminatorHiddenInForm()
+    {
+        var (discoverer, generator) = CreateServices(o => o.IncludeDiscriminatorInExamples = true);
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var circleOp = doc.Paths["/hubs/Polymorphic/DrawShape/circle"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        var formSchema = circleOp.RequestBody.Content["application/x-www-form-urlencoded"].Schema;
+        Assert.IsTrue(formSchema.Properties.ContainsKey("kind"), "Form schema should contain discriminator.");
+        Assert.IsTrue(formSchema.Properties["kind"].ReadOnly, "Discriminator should be read-only in form schema.");
+    }
+
+    /// <summary>
+    /// Verifies that discriminator property is read-only in both schemas
+    /// when IncludeDiscriminatorInExamples is false.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_ExcludeDiscriminatorFromExamples_DiscriminatorHidden()
+    {
+        var (discoverer, generator) = CreateServices(o => o.IncludeDiscriminatorInExamples = false);
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var circleOp = doc.Paths["/hubs/Polymorphic/DrawShape/circle"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        var jsonSchema = circleOp.RequestBody.Content["application/json"].Schema;
+        Assert.IsTrue(jsonSchema.Properties["kind"].ReadOnly, "Discriminator should be read-only when excluded from examples.");
+    }
+
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(
         Action<SignalROpenApiOptions>? configure = null)
     {
