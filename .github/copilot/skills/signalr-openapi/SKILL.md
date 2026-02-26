@@ -42,6 +42,26 @@ reordered[discriminatorProp] = discriminatorValue;
 Object.keys(original).forEach(k => { if (k !== discriminatorProp) reordered[k] = original[k]; });
 ```
 
+### SignalR vs OpenAPI JSON Serialization — Naming Policy Mismatch
+
+SignalR's `JsonHubProtocol` and the OpenAPI document generator use **separate** `JsonSerializerOptions` instances with potentially different `PropertyNamingPolicy` settings:
+
+- **SignalR wire format**: `JsonHubProtocol.PayloadSerializerOptions` defaults to **camelCase** (e.g., `content`, `recipient`)
+- **OpenAPI spec**: Configurable via `SignalROpenApiOptions.JsonSerializerOptions` (e.g., `PropertyNamingPolicy = null` → PascalCase: `Content`, `Recipient`)
+
+**Rule**: Always use **case-insensitive matching** when comparing property names across SignalR wire data and OpenAPI spec metadata. Build a lowercase lookup of received keys:
+```js
+var keysLower = {};
+Object.keys(obj).forEach(function (k) { keysLower[k.toLowerCase()] = true; });
+if (keysLower[candidateProp.toLowerCase()]) { /* match */ }
+```
+
+### SignalR Omits Polymorphic Type Discriminators
+
+`JsonHubProtocol.WriteArguments` serializes each argument via `JsonSerializer.Serialize(writer, argument, argument.GetType(), options)` — using the **runtime type**. `System.Text.Json` only writes the discriminator when serializing as the **declared base type** (e.g., `Notification`), not the runtime derived type (e.g., `TextNotification`).
+
+**Consequence**: Client event payloads for polymorphic types are MISSING the discriminator property. The `x-signalr.eventDiscriminators` metadata provides property-to-type mappings so the JS plugin can infer and inject the discriminator by matching received properties against known derived types.
+
 ### Swashbuckle Plugin Registration
 
 Register via `ConfigObject.Plugins`, **not** `InjectJavascript`. `InjectJavascript` loads scripts after SwaggerUI initialization, so `wrapActions` hooks are never applied.
@@ -49,6 +69,25 @@ Register via `ConfigObject.Plugins`, **not** `InjectJavascript`. `InjectJavascri
 ```csharp
 options.ConfigObject.Plugins = new[] { "SignalROpenApiPlugin" };
 ```
+
+### SwaggerUI Component Wrapping (`wrapComponents`)
+
+Props passed to wrapped components may be **plain JS objects/arrays OR ImmutableJS** structures (Maps, Lists) depending on the component. Never assume one or the other — always use defensive access:
+
+```js
+// Reading from a prop that may be array or ImmutableJS List
+var path = props.pathMethod.get ? props.pathMethod.get(0) : props.pathMethod[0];
+
+// Checking collection size (ImmutableJS uses .size, arrays use .length)
+var count = params.size != null ? params.size : params.length;
+```
+
+Key components wrapped by the plugin:
+- `OperationSummary` — changes method labels (INVOKE/STREAM/EVENT), strips Async suffix from display path
+- `curl` — hidden for SignalR operations (returns `null`)
+- `parameters` — hidden when empty for SignalR operations (suppresses "No parameters" message since hub methods use request body, not URL parameters)
+- `execute` — shows "Stop Stream" button for active streams
+- `responses` — renders `SignalREventLog` panel for client events (GET operations)
 
 ### SwaggerUI Form-Urlencoded Behavior
 
@@ -75,7 +114,11 @@ options.ConfigObject.Plugins = new[] { "SignalROpenApiPlugin" };
 
 ### x-signalr Vendor Extension
 
-Every SignalR operation includes `x-signalr` with: `hubName`, `methodName`, `isStreaming`, `clientEvent`, `parameterCount`, `flattenedBody`, and optionally `discriminatorProperty`/`discriminatorValue` for sub-endpoints.
+Every SignalR operation includes `x-signalr` with: `hub`, `method`, `stream`, `clientEvent`, `parameterCount`, `flattenedBody`, `hubPath`, and optionally `discriminatorProperty`/`discriminatorValue` for sub-endpoints.
+
+Client event operations additionally include:
+- `parameterNames` — maps positional SignalR args to named properties in the event log
+- `eventDiscriminators` — property-to-type mapping for polymorphic parameter inference (compensates for SignalR omitting discriminators); uses case-insensitive matching for cross-boundary compatibility
 
 ### Playwright Tests in CI
 

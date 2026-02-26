@@ -622,6 +622,24 @@ var SignalROpenApiPlugin = function (system) {
           return React.createElement(Original, props);
         };
       },
+      // Hide "No parameters" section for SignalR operations
+      parameters: function (Original, system) {
+        return function (props) {
+          var React = system.React;
+          var pathMethod = props.pathMethod || [];
+          var path = pathMethod.get ? pathMethod.get(0) : pathMethod[0] || "";
+
+          if (_isSignalRPath(path)) {
+            var params = props.parameters;
+            var count = params ? (params.size != null ? params.size : params.length) : 0;
+            if (count === 0) {
+              return null;
+            }
+          }
+
+          return React.createElement(Original, props);
+        };
+      },
       // Replace the Execute button for streaming operations
       execute: function (Original, system) {
         return function (props) {
