@@ -43,7 +43,15 @@ public class ChatHub : Hub<IChatClient>, IChatHub
     [SignalROpenApiRequestExamples(typeof(NotificationExamplesProvider))]
     public async Task SendNotificationAsync(Notification notification)
     {
-        await this.Clients.All.ReceiveMessage(notification.Recipient, $"Notification: {notification.GetType().Name}");
+        var message = notification switch
+        {
+            TextNotification text => text.Content,
+            AlertNotification alert => $"[{alert.Severity}] {alert.Title}",
+            _ => $"Notification: {notification.GetType().Name}",
+        };
+
+        await this.Clients.All.ReceiveMessage(notification.Recipient, message);
+        await this.Clients.All.ReceiveNotification(notification);
     }
 
     /// <inheritdoc />

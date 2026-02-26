@@ -64,12 +64,91 @@ var SignalROpenApiPlugin = function (system) {
       }
 
       var eventName = ext.method;
+      var paramNames = ext.parameterNames || [];
+      var eventDiscriminators = ext.eventDiscriminators || {};
       hub.on(eventName, function () {
         var args = Array.prototype.slice.call(arguments);
+
+        // Map positional args to named parameters when names are available.
+        var payload;
+        if (paramNames.length > 0 && args.length > 0) {
+          payload = {};
+          for (var pi = 0; pi < args.length; pi++) {
+            var key = pi < paramNames.length ? paramNames[pi] : "arg" + pi;
+            payload[key] = args[pi];
+          }
+        } else {
+          payload = args.length === 1 ? args[0] : args;
+        }
+
+        // Inject discriminator values for polymorphic parameters.
+        // SignalR serializes with the runtime type, omitting the discriminator.
+        // Use the property mapping from x-signalr to infer the derived type.
+        // Matching is case-insensitive because SignalR and OpenAPI may use
+        // different naming policies (e.g. camelCase vs PascalCase).
+        if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+          try {
+            var discKeys = Object.keys(eventDiscriminators);
+            for (var di = 0; di < discKeys.length; di++) {
+              var paramKey = discKeys[di];
+              var paramVal = payload[paramKey];
+              if (!paramVal || typeof paramVal !== "object") {
+                continue;
+              }
+
+              var discInfo = eventDiscriminators[paramKey];
+
+              // Build a lowercase lookup of the received object's keys.
+              var valKeysOrig = Object.keys(paramVal);
+              var valKeysLower = {};
+              for (var ki = 0; ki < valKeysOrig.length; ki++) {
+                valKeysLower[valKeysOrig[ki].toLowerCase()] = true;
+              }
+
+              // Skip if the discriminator is already present.
+              if (valKeysLower[discInfo.property.toLowerCase()]) {
+                continue;
+              }
+
+              var mappingKeys = Object.keys(discInfo.mapping);
+              var bestMatch = null;
+              var bestScore = -1;
+              for (var mi = 0; mi < mappingKeys.length; mi++) {
+                var candidateProps = discInfo.mapping[mappingKeys[mi]];
+                var score = 0;
+                for (var ci = 0; ci < candidateProps.length; ci++) {
+                  if (valKeysLower[candidateProps[ci].toLowerCase()]) {
+                    score++;
+                  }
+                }
+
+                // Prefer the candidate whose properties are the closest match.
+                if (score > bestScore || (score === bestScore && bestMatch !== null && candidateProps.length < discInfo.mapping[bestMatch].length)) {
+                  bestScore = score;
+                  bestMatch = mappingKeys[mi];
+                }
+              }
+
+              if (bestMatch !== null && bestScore > 0) {
+                // Inject discriminator as the first property for clarity.
+                var reordered = {};
+                reordered[discInfo.property] = bestMatch;
+                for (var vi = 0; vi < valKeysOrig.length; vi++) {
+                  reordered[valKeysOrig[vi]] = paramVal[valKeysOrig[vi]];
+                }
+
+                payload[paramKey] = reordered;
+              }
+            }
+          } catch (e) {
+            console.error("[SignalR OpenAPI] Discriminator inference error:", e);
+          }
+        }
+
         var entry = {
           timestamp: new Date().toISOString(),
           event: eventName,
-          payload: args.length === 1 ? args[0] : args,
+          payload: payload,
         };
 
         if (!_eventLogs[hubPath]) {

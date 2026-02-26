@@ -121,6 +121,54 @@ public class SignalROpenApiDocumentGeneratorTests
     }
 
     /// <summary>
+    /// Verifies client event x-signalr extension includes parameterNames.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_ClientEvent_IncludesParameterNames()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var eventOp = doc.Paths["/hubs/TypedChat/events/ReceiveMessage"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Get];
+
+        var ext = (Microsoft.OpenApi.Any.OpenApiObject)eventOp.Extensions["x-signalr"];
+        var paramNames = (Microsoft.OpenApi.Any.OpenApiArray)ext["parameterNames"];
+
+        Assert.AreEqual(2, paramNames.Count, "ReceiveMessage should have 2 parameter names.");
+        Assert.AreEqual("user", ((Microsoft.OpenApi.Any.OpenApiString)paramNames[0]).Value);
+        Assert.AreEqual("message", ((Microsoft.OpenApi.Any.OpenApiString)paramNames[1]).Value);
+    }
+
+    /// <summary>
+    /// Verifies polymorphic client event parameters include eventDiscriminators metadata.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_ClientEvent_IncludesEventDiscriminators()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var eventOp = doc.Paths["/hubs/TypedChat/events/ShapeDrawn"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Get];
+
+        var ext = (Microsoft.OpenApi.Any.OpenApiObject)eventOp.Extensions["x-signalr"];
+        Assert.IsTrue(ext.ContainsKey("eventDiscriminators"), "Should have eventDiscriminators.");
+
+        var discriminators = (Microsoft.OpenApi.Any.OpenApiObject)ext["eventDiscriminators"];
+        Assert.IsTrue(discriminators.ContainsKey("shape"), "Should have discriminator for 'shape' parameter.");
+
+        var shapeDisc = (Microsoft.OpenApi.Any.OpenApiObject)discriminators["shape"];
+        Assert.AreEqual("kind", ((Microsoft.OpenApi.Any.OpenApiString)shapeDisc["property"]).Value);
+
+        var mapping = (Microsoft.OpenApi.Any.OpenApiObject)shapeDisc["mapping"];
+        Assert.IsTrue(mapping.ContainsKey("circle"), "Should have mapping for 'circle'.");
+        Assert.IsTrue(mapping.ContainsKey("rectangle"), "Should have mapping for 'rectangle'.");
+    }
+
+    /// <summary>
     /// Verifies security schemes are added when authorized hubs exist.
     /// </summary>
     [TestMethod]

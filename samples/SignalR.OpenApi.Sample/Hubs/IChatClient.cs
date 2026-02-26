@@ -21,4 +21,12 @@ public interface IChatClient
     /// <param name="user">The user who connected.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task UserConnected(string user);
+
+    /// <summary>
+    /// Receives a notification object. The notification type is polymorphic —
+    /// the "type" discriminator indicates "text" or "alert".
+    /// </summary>
+    /// <param name="notification">The notification that was received.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    Task ReceiveNotification(Notification notification);
 }

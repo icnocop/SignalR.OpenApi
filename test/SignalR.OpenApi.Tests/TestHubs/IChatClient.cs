@@ -21,4 +21,11 @@ public interface IChatClient
     /// <param name="user">The user who joined.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task UserJoined(string user);
+
+    /// <summary>
+    /// Receives a shape event (polymorphic parameter).
+    /// </summary>
+    /// <param name="shape">The shape that was drawn.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    Task ShapeDrawn(TestShape shape);
 }

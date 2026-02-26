@@ -91,7 +91,8 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         int parameterCount = 0,
         bool flattenedBody = false,
         string? discriminatorProperty = null,
-        string? discriminatorValue = null)
+        string? discriminatorValue = null,
+        IReadOnlyList<string>? parameterNames = null)
     {
         var extension = new Microsoft.OpenApi.Any.OpenApiObject
         {
@@ -116,6 +117,17 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         if (discriminatorValue is not null)
         {
             extension["discriminatorValue"] = new Microsoft.OpenApi.Any.OpenApiString(discriminatorValue);
+        }
+
+        if (parameterNames is not null && parameterNames.Count > 0)
+        {
+            var namesArray = new Microsoft.OpenApi.Any.OpenApiArray();
+            foreach (var name in parameterNames)
+            {
+                namesArray.Add(new Microsoft.OpenApi.Any.OpenApiString(name));
+            }
+
+            extension["parameterNames"] = namesArray;
         }
 
         operation.Extensions["x-signalr"] = extension;
@@ -628,12 +640,19 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             if (discriminatorValue is not null)
             {
                 derivedSchema.Properties ??= new Dictionary<string, OpenApiSchema>();
+
+                // Preserve ReadOnly if the discriminator property was already set
+                // (e.g., by AddPolymorphicSubEndpoints for form schemas).
+                var preserveReadOnly = derivedSchema.Properties.TryGetValue(discriminatorPropertyName, out var existing)
+                    && existing.ReadOnly;
+
                 derivedSchema.Properties[discriminatorPropertyName] = new OpenApiSchema
                 {
                     Type = derived.TypeDiscriminator is string ? "string" : "integer",
                     Enum = derived.TypeDiscriminator is string
                         ? [new Microsoft.OpenApi.Any.OpenApiString(discriminatorValue)]
                         : [new Microsoft.OpenApi.Any.OpenApiInteger(int.Parse(discriminatorValue, System.Globalization.CultureInfo.InvariantCulture))],
+                    ReadOnly = preserveReadOnly,
                 };
 
                 mapping[discriminatorValue] = $"#/components/schemas/{schemaName}";
@@ -770,10 +789,16 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
             // Offer form-urlencoded when all properties are flat.
             // Use a separate schema that hides the discriminator from form inputs.
+            // Build inline to avoid overwriting the component schema entry.
             if (HasOnlyFlatProperties(derived.DerivedType))
             {
-                var formSchema = this.CreateObjectSchema(derived.DerivedType);
-                formSchema.Properties ??= new Dictionary<string, OpenApiSchema>();
+                var formSchema = new OpenApiSchema
+                {
+                    Type = "object",
+                    Properties = new Dictionary<string, OpenApiSchema>(derivedSchema.Properties ?? new Dictionary<string, OpenApiSchema>()),
+                    Required = derivedSchema.Required is not null ? new HashSet<string>(derivedSchema.Required) : new HashSet<string>(),
+                };
+
                 formSchema.Properties[discriminatorPropertyName] = new OpenApiSchema
                 {
                     Type = discriminatorSchema.Type,
@@ -848,7 +873,14 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
                 },
             };
 
-            AddSignalRExtension(operation, hub.Name, clientEvent.Name, hubPath: hub.Path, isClientEvent: true);
+            var paramNames = clientEvent.Parameters.Select(p => p.Name).ToList();
+            AddSignalRExtension(operation, hub.Name, clientEvent.Name, hubPath: hub.Path, isClientEvent: true, parameterNames: paramNames);
+
+            // Add discriminator inference metadata for polymorphic parameters.
+            // SignalR's JsonHubProtocol serializes with the runtime type, which
+            // omits the discriminator. The JS plugin uses this metadata to infer
+            // and inject the discriminator value from the received properties.
+            this.AddEventDiscriminators(operation, clientEvent.Parameters);
 
             if (clientEvent.Parameters.Count > 0)
             {
@@ -871,6 +903,57 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             };
 
             document.Paths[pathKey] = pathItem;
+        }
+    }
+
+    private void AddEventDiscriminators(OpenApiOperation operation, IReadOnlyList<SignalRParameterInfo> parameters)
+    {
+        Microsoft.OpenApi.Any.OpenApiObject? discriminators = null;
+
+        foreach (var param in parameters)
+        {
+            var polyAttr = param.ParameterType.GetCustomAttribute<JsonPolymorphicAttribute>();
+            if (polyAttr is null)
+            {
+                continue;
+            }
+
+            var discriminatorProp = polyAttr.TypeDiscriminatorPropertyName ?? "$type";
+            var derivedTypes = param.ParameterType.GetCustomAttributes<JsonDerivedTypeAttribute>();
+
+            var mapping = new Microsoft.OpenApi.Any.OpenApiObject();
+            foreach (var derived in derivedTypes)
+            {
+                var discriminatorValue = derived.TypeDiscriminator?.ToString();
+                if (discriminatorValue is null)
+                {
+                    continue;
+                }
+
+                var props = new Microsoft.OpenApi.Any.OpenApiArray();
+                foreach (var prop in derived.DerivedType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    props.Add(new Microsoft.OpenApi.Any.OpenApiString(this.ConvertPropertyName(prop.Name)));
+                }
+
+                mapping[discriminatorValue] = props;
+            }
+
+            if (mapping.Count > 0)
+            {
+                discriminators ??= new Microsoft.OpenApi.Any.OpenApiObject();
+                discriminators[param.Name] = new Microsoft.OpenApi.Any.OpenApiObject
+                {
+                    ["property"] = new Microsoft.OpenApi.Any.OpenApiString(discriminatorProp),
+                    ["mapping"] = mapping,
+                };
+            }
+        }
+
+        if (discriminators is not null)
+        {
+            var ext = (Microsoft.OpenApi.Any.OpenApiObject)operation.Extensions["x-signalr"];
+            ext["eventDiscriminators"] = discriminators;
         }
     }
 
