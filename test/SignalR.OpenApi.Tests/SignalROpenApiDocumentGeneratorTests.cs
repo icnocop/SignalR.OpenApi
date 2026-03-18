@@ -984,6 +984,121 @@ public class SignalROpenApiDocumentGeneratorTests
         Assert.AreEqual("string", statusProp.Type, "Status property should be string with JsonStringEnumConverter.");
     }
 
+    /// <summary>
+    /// Verifies the document-level tags list contains all unique tags from operations.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_PopulatesDocumentLevelTags()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Tags, "Document should have tags.");
+        Assert.IsTrue(doc.Tags.Count > 0, "Document should have at least one tag.");
+
+        var tagNames = doc.Tags.Select(t => t.Name).ToList();
+
+        // BasicHub has no [Tags] so its methods default to "Basic" tag
+        CollectionAssert.Contains(tagNames, "Basic");
+
+        // AttributeHub methods without [Tags] default to hub name "Attribute"
+        CollectionAssert.Contains(tagNames, "Attribute");
+
+        // GetUserDetailsAsync on AttributeHub uses [Tags("Users")]
+        CollectionAssert.Contains(tagNames, "Users");
+    }
+
+    /// <summary>
+    /// Verifies that tag descriptions configured via options are applied.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_WhenTagDescriptionConfiguredThenApplied()
+    {
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.TagDescriptions["Basic"] = "Basic hub operations";
+        });
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Tags);
+        var basicTag = doc.Tags.FirstOrDefault(t => t.Name == "Basic");
+        Assert.IsNotNull(basicTag, "Document should contain a 'Basic' tag.");
+        Assert.AreEqual("Basic hub operations", basicTag.Description);
+    }
+
+    /// <summary>
+    /// Verifies that when no description is configured, the hub's XML summary
+    /// is used as fallback when the tag name matches the hub name.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_WhenNoTagDescriptionThenFallsBackToHubSummary()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Tags);
+
+        // BasicHub has XML summary "A basic hub for testing." and default tag "Basic"
+        var basicTag = doc.Tags.FirstOrDefault(t => t.Name == "Basic");
+        Assert.IsNotNull(basicTag, "Document should contain a 'Basic' tag.");
+        Assert.AreEqual("A basic hub for testing.", basicTag.Description);
+    }
+
+    /// <summary>
+    /// Verifies that configured tag descriptions take precedence over hub XML summaries.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_WhenTagDescriptionConfiguredThenOverridesHubSummary()
+    {
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.TagDescriptions["Basic"] = "Custom description";
+        });
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Tags);
+        var basicTag = doc.Tags.FirstOrDefault(t => t.Name == "Basic");
+        Assert.IsNotNull(basicTag, "Document should contain a 'Basic' tag.");
+        Assert.AreEqual("Custom description", basicTag.Description);
+    }
+
+    /// <summary>
+    /// Verifies that tags from client events (e.g., "TypedChat Events") appear in document tags.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_IncludesClientEventTags()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Tags);
+        var tagNames = doc.Tags.Select(t => t.Name).ToList();
+        CollectionAssert.Contains(tagNames, "TypedChat Events");
+    }
+
+    /// <summary>
+    /// Verifies that document tags are deduplicated when multiple methods share the same tag.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_DeduplicatesDocumentTags()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Tags);
+        var tagNames = doc.Tags.Select(t => t.Name).ToList();
+        var distinctNames = tagNames.Distinct().ToList();
+        Assert.AreEqual(distinctNames.Count, tagNames.Count, "Document tags should be unique.");
+    }
+
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(
         Action<SignalROpenApiOptions>? configure = null)
     {

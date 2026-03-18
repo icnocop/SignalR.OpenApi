@@ -12,6 +12,7 @@ OpenAPI 3.1 specification generation and SwaggerUI support for ASP.NET Core Sign
 - **Streaming support**: `IAsyncEnumerable<T>` and `ChannelReader<T>` with accumulated item history and stream state tracking
 - **Client event monitoring**: Auto-subscribes to typed hub (`Hub<TClient>`) events with real-time event log panel
 - Supports standard ASP.NET Core attributes (`[Authorize]`, `[Tags]`, `[EndpointSummary]`, `[Obsolete]`, etc.)
+- Document-level tag definitions with descriptions (from options or XML summary fallback)
 - XML documentation comments for descriptions and examples
 - `[JsonPolymorphic]` / `[JsonDerivedType]` polymorphic schema support with OData-style sub-endpoints
 - Data Annotation validation attributes mapped to OpenAPI schema constraints
@@ -64,6 +65,10 @@ builder.Services.AddSignalROpenApi(options =>
 
     // Include type discriminator in JSON examples for polymorphic sub-endpoints (default: true)
     options.IncludeDiscriminatorInExamples = true;
+
+    // Add descriptions for tags (displayed as group descriptions in SwaggerUI)
+    options.TagDescriptions["Chat"] = "Real-time chat operations";
+    options.TagDescriptions["Chat Events"] = "Server-to-client chat notifications";
 
     // Configure JSON property naming (default: camelCase)
     options.JsonSerializerOptions = new System.Text.Json.JsonSerializerOptions
@@ -167,7 +172,7 @@ public class AlertNotification : Notification
 
 | Attribute | OpenAPI Mapping |
 |-----------|----------------|
-| `[Tags("group")]` | `tags` on operation |
+| `[Tags("group")]` | `tags` on operation + document-level tag definition |
 | `[EndpointSummary("...")]` | `summary` on operation |
 | `[EndpointDescription("...")]` | `description` on operation |
 | `[EndpointName("Name")]` | `operationId` on operation |
@@ -183,6 +188,46 @@ public class AlertNotification : Notification
 | XML `<example>` | Example values |
 | `[SignalROpenApiRequestExamples]` | Named request examples |
 | `[SignalROpenApiResponseExamples]` | Named response examples |
+
+## Tag Grouping
+
+Operations are grouped by tags in SwaggerUI. The generator automatically collects all unique tags from operations and adds them to the document-level `tags` section.
+
+### Tag Descriptions
+
+Tag descriptions appear as group headers in SwaggerUI. There are two ways to provide them:
+
+**1. Via options** (explicit):
+
+```csharp
+builder.Services.AddSignalROpenApi(options =>
+{
+    options.TagDescriptions["Chat"] = "Real-time chat operations";
+    options.TagDescriptions["Admin"] = "Administrative hub methods";
+});
+```
+
+**2. Via XML summary** (automatic fallback): When a tag name matches the hub name (e.g., tag `"Chat"` matches `ChatHub`), the hub's XML `<summary>` is used as the tag description automatically.
+
+```csharp
+/// <summary>
+/// Real-time chat operations.
+/// </summary>
+public class ChatHub : Hub
+{
+    // Methods default to the "Chat" tag → description comes from XML summary above
+}
+```
+
+Explicit `TagDescriptions` always take precedence over XML summary fallback.
+
+### Tag Sources
+
+| Source | Tag Name |
+|--------|----------|
+| Hub class (default) | Hub name without `Hub` suffix (e.g., `ChatHub` → `"Chat"`) |
+| `[Tags("group")]` on hub class or method | Specified tag name |
+| Client events (`Hub<TClient>`) | `"{HubName} Events"` (e.g., `"Chat Events"`) |
 
 ## Request Body Schema
 

@@ -18,6 +18,13 @@ builder.Services.AddSignalROpenApi(options =>
     options.DocumentVersion = "v1";
     options.IncludeDiscriminatorInExamples = true;
 
+    // Tag descriptions shown as group headers in SwaggerUI
+    options.TagDescriptions["Chat"] = "Real-time chat operations including messaging, notifications, and streaming.";
+    options.TagDescriptions["Groups"] = "Send messages to specific SignalR groups.";
+    options.TagDescriptions["Notifications"] = "Polymorphic notification delivery (text and alert types).";
+    options.TagDescriptions["Streaming"] = "Server-to-client streaming operations.";
+    options.TagDescriptions["Chat Events"] = "Server-to-client callbacks. Subscribe to receive real-time notifications.";
+
     // Default: camelCase (matches ASP.NET Core default)
     // For PascalCase:
     options.JsonSerializerOptions.PropertyNamingPolicy = null;

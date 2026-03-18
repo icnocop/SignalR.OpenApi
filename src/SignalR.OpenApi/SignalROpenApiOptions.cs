@@ -72,6 +72,14 @@ public sealed class SignalROpenApiOptions
     public bool IncludeDiscriminatorInExamples { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets descriptions for OpenAPI tags. Maps tag names to their
+    /// descriptions, which appear in the document-level <c>tags</c> section.
+    /// When a tag used by an operation is not present here, the generator
+    /// falls back to the hub's XML summary if the tag name matches the hub name.
+    /// </summary>
+    public IDictionary<string, string> TagDescriptions { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
     /// Gets or sets the <see cref="JsonSerializerOptions"/> used for property naming
     /// and example serialization in the generated OpenAPI document.
     /// Defaults to camelCase naming, matching ASP.NET Core's default JSON behavior.

@@ -79,6 +79,8 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             AddSecuritySchemes(document);
         }
 
+        this.AddDocumentTags(document, hubs);
+
         return document;
     }
 
@@ -374,6 +376,80 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         }
 
         return arr;
+    }
+
+    /// <summary>
+    /// Collects every unique tag referenced by operations and adds
+    /// document-level tag definitions with optional descriptions.
+    /// Descriptions are resolved from <see cref="SignalROpenApiOptions.TagDescriptions"/>
+    /// first, then fall back to the hub's XML summary when the tag name
+    /// matches the hub name.
+    /// </summary>
+    private void AddDocumentTags(OpenApiDocument document, IReadOnlyList<SignalRHubInfo> hubs)
+    {
+        // Build a lookup of hub name → summary for fallback descriptions.
+        var hubSummaries = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var hub in hubs)
+        {
+            if (!string.IsNullOrWhiteSpace(hub.Summary))
+            {
+                hubSummaries.TryAdd(hub.Name, hub.Summary);
+            }
+        }
+
+        // Collect all unique tag names from operations, preserving first-seen order.
+        var tagNames = new List<string>();
+        var tagSet = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var hub in hubs)
+        {
+            foreach (var method in hub.Methods)
+            {
+                foreach (var tag in method.Tags)
+                {
+                    if (tagSet.Add(tag))
+                    {
+                        tagNames.Add(tag);
+                    }
+                }
+            }
+
+            foreach (var clientEvent in hub.ClientEvents)
+            {
+                var eventTag = $"{hub.Name} Events";
+                if (tagSet.Add(eventTag))
+                {
+                    tagNames.Add(eventTag);
+                }
+            }
+        }
+
+        if (tagNames.Count == 0)
+        {
+            return;
+        }
+
+        document.Tags = new List<OpenApiTag>();
+
+        foreach (var tagName in tagNames)
+        {
+            string? description = null;
+
+            if (this.options.TagDescriptions.TryGetValue(tagName, out var configured))
+            {
+                description = configured;
+            }
+            else if (hubSummaries.TryGetValue(tagName, out var hubSummary))
+            {
+                description = hubSummary;
+            }
+
+            document.Tags.Add(new OpenApiTag
+            {
+                Name = tagName,
+                Description = description,
+            });
+        }
     }
 
     private string ConvertPropertyName(string value)

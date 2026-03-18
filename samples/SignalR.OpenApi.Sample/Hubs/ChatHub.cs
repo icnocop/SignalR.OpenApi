@@ -34,12 +34,14 @@ public class ChatHub : Hub<IChatClient>, IChatHub
     }
 
     /// <inheritdoc />
+    [Tags("Groups")]
     public async Task SendToGroupAsync(string group, string user, string message)
     {
         await this.Clients.Group(group).ReceiveMessage(user, message);
     }
 
     /// <inheritdoc />
+    [Tags("Notifications")]
     [SignalROpenApiRequestExamples(typeof(NotificationExamplesProvider))]
     public async Task SendNotificationAsync(Notification notification)
     {
@@ -55,6 +57,7 @@ public class ChatHub : Hub<IChatClient>, IChatHub
     }
 
     /// <inheritdoc />
+    [Tags("Streaming")]
     public async IAsyncEnumerable<int> Countdown(
         int from,
         [EnumeratorCancellation] CancellationToken cancellationToken)
