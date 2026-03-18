@@ -58,6 +58,12 @@
   background: #e02020 !important;
 }
 
+/* Hide the "No parameters" message for SignalR operations
+   while keeping the "Try it out" button visible. */
+.signalr-no-params .opblock-description-wrapper .opblock-description {
+  display: none;
+}
+
 /* Client event log panel */
 .signalr-event-panel {
   font-family: sans-serif;

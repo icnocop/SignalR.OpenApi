@@ -9,9 +9,22 @@ namespace SignalR.OpenApi.Sample.Hubs;
 /// </summary>
 public class ReplyToMessageExamplesProvider : ISignalROpenApiExamplesProvider<ReplyToMessageRequest>
 {
+    private readonly IDateTimeProvider dateTimeProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ReplyToMessageExamplesProvider"/> class.
+    /// </summary>
+    /// <param name="dateTimeProvider">The date and time provider.</param>
+    public ReplyToMessageExamplesProvider(IDateTimeProvider dateTimeProvider)
+    {
+        this.dateTimeProvider = dateTimeProvider;
+    }
+
     /// <inheritdoc/>
     public IEnumerable<SignalROpenApiExample<ReplyToMessageRequest>> GetExamples()
     {
+        var now = this.dateTimeProvider.Now();
+
         yield return new SignalROpenApiExample<ReplyToMessageRequest>(
             "ReplyToGreeting",
             new ReplyToMessageRequest
@@ -20,13 +33,13 @@ public class ReplyToMessageExamplesProvider : ISignalROpenApiExamplesProvider<Re
                 {
                     User = "Alice",
                     Message = "Hello, everyone!",
-                    Timestamp = new DateTimeOffset(2026, 2, 15, 10, 0, 0, TimeSpan.Zero),
+                    Timestamp = now,
                 },
                 Reply = new ChatMessage
                 {
                     User = "Bob",
                     Message = "Hi Alice, welcome!",
-                    Timestamp = new DateTimeOffset(2026, 2, 15, 10, 1, 0, TimeSpan.Zero),
+                    Timestamp = now,
                 },
             })
         {
@@ -41,13 +54,13 @@ public class ReplyToMessageExamplesProvider : ISignalROpenApiExamplesProvider<Re
                 {
                     User = "Bob",
                     Message = "What time is the meeting?",
-                    Timestamp = new DateTimeOffset(2026, 2, 15, 14, 0, 0, TimeSpan.Zero),
+                    Timestamp = now,
                 },
                 Reply = new ChatMessage
                 {
                     User = "Alice",
                     Message = "It starts at 3 PM.",
-                    Timestamp = new DateTimeOffset(2026, 2, 15, 14, 2, 0, TimeSpan.Zero),
+                    Timestamp = now,
                 },
             })
         {

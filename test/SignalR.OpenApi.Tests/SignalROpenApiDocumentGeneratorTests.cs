@@ -1,5 +1,6 @@
 // Copyright (c) SignalR.OpenApi Contributors. Licensed under the MIT License.
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SignalR.OpenApi.Discovery;
@@ -861,6 +862,49 @@ public class SignalROpenApiDocumentGeneratorTests
         Assert.IsNull(circleFormSchema.Properties["kind"].Example, "ReadOnly discriminator should not have an example.");
     }
 
+    /// <summary>
+    /// Verifies that examples providers with constructor dependencies are resolved via DI.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_ExamplesProviderWithDependencyInjection()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ITestValueProvider>(new TestValueProvider("InjectedProduct"));
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var options = new SignalROpenApiOptions
+        {
+            Assemblies = [typeof(DiExampleHub).Assembly],
+        };
+
+        var opts = Options.Create(options);
+        var discoverer = new ReflectionHubDiscoverer(opts);
+        var generator = new SignalROpenApiDocumentGenerator(opts, serviceProvider);
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var submitRequest = doc.Paths["/hubs/DiExample/SubmitRequest"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        Assert.IsNotNull(submitRequest.RequestBody, "SubmitRequest should have a request body.");
+
+        var jsonContent = submitRequest.RequestBody.Content["application/json"];
+        Assert.IsNotNull(jsonContent.Examples, "Request body should have examples.");
+        Assert.IsTrue(jsonContent.Examples.ContainsKey("DiExample"), "Should contain 'DiExample' example.");
+
+        var diExample = jsonContent.Examples["DiExample"];
+        Assert.AreEqual("Example from DI provider", diExample.Summary);
+
+        // Verify the injected value was used
+        Assert.IsNotNull(diExample.Value, "Example value should not be null.");
+        var exampleObj = diExample.Value as Microsoft.OpenApi.Any.OpenApiObject;
+        Assert.IsNotNull(exampleObj, "Example value should be an OpenApiObject.");
+        var nameValue = exampleObj["name"] as Microsoft.OpenApi.Any.OpenApiString;
+        Assert.IsNotNull(nameValue, "Name property should exist.");
+        Assert.AreEqual("InjectedProduct", nameValue.Value, "Name should be the injected value.");
+    }
+
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(
         Action<SignalROpenApiOptions>? configure = null)
     {
@@ -879,5 +923,17 @@ public class SignalROpenApiDocumentGeneratorTests
     private sealed class EmptyServiceProvider : IServiceProvider
     {
         public object? GetService(Type serviceType) => null;
+    }
+
+    private sealed class TestValueProvider : ITestValueProvider
+    {
+        private readonly string value;
+
+        public TestValueProvider(string value)
+        {
+            this.value = value;
+        }
+
+        public string GetValue() => this.value;
     }
 }

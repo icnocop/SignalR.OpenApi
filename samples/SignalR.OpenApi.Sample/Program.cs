@@ -6,6 +6,7 @@ using SignalR.OpenApi.Sample.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = true;

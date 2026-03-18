@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using SignalR.OpenApi.Examples;
@@ -1263,20 +1264,14 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
     {
         var result = new Dictionary<string, OpenApiExample>();
 
-        // Try to resolve from DI first, then fall back to Activator.CreateInstance
-        object? provider = null;
+        // Create the provider using ActivatorUtilities, which resolves constructor
+        // dependencies from DI while allowing types that are not registered themselves.
+        object provider;
         try
         {
-            provider = this.serviceProvider.GetService(providerType);
+            provider = ActivatorUtilities.CreateInstance(this.serviceProvider, providerType);
         }
-        catch (InvalidOperationException)
-        {
-            // Provider not registered in DI
-        }
-
-        provider ??= Activator.CreateInstance(providerType);
-
-        if (provider is null)
+        catch (Exception)
         {
             return result;
         }
@@ -1339,19 +1334,12 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
     {
         var result = new Dictionary<string, OpenApiExample>();
 
-        object? provider = null;
+        object provider;
         try
         {
-            provider = this.serviceProvider.GetService(providerType);
+            provider = ActivatorUtilities.CreateInstance(this.serviceProvider, providerType);
         }
-        catch (InvalidOperationException)
-        {
-            // Provider not registered in DI
-        }
-
-        provider ??= Activator.CreateInstance(providerType);
-
-        if (provider is null)
+        catch (Exception)
         {
             return result;
         }
@@ -1438,19 +1426,12 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
     private object? GetFirstExampleValueFromProvider(Type providerType, Type? filterType = null)
     {
-        object? provider = null;
+        object provider;
         try
         {
-            provider = this.serviceProvider.GetService(providerType);
+            provider = ActivatorUtilities.CreateInstance(this.serviceProvider, providerType);
         }
-        catch (InvalidOperationException)
-        {
-            // Provider not registered in DI
-        }
-
-        provider ??= Activator.CreateInstance(providerType);
-
-        if (provider is null)
+        catch (Exception)
         {
             return null;
         }

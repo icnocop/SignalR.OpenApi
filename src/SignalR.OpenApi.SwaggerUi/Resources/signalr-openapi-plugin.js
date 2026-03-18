@@ -622,7 +622,8 @@ var SignalROpenApiPlugin = function (system) {
           return React.createElement(Original, props);
         };
       },
-      // Hide "No parameters" section for SignalR operations
+      // Hide "No parameters" message for SignalR operations while
+      // preserving the "Try it out" button that lives in this component.
       parameters: function (Original, system) {
         return function (props) {
           var React = system.React;
@@ -633,7 +634,9 @@ var SignalROpenApiPlugin = function (system) {
             var params = props.parameters;
             var count = params ? (params.size != null ? params.size : params.length) : 0;
             if (count === 0) {
-              return null;
+              return React.createElement("div", { className: "signalr-no-params" },
+                React.createElement(Original, props)
+              );
             }
           }
 
