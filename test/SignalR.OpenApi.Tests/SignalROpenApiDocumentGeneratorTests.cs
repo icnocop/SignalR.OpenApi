@@ -1,5 +1,6 @@
 // Copyright (c) SignalR.OpenApi Contributors. Licensed under the MIT License.
 
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -903,6 +904,84 @@ public class SignalROpenApiDocumentGeneratorTests
         var nameValue = exampleObj["name"] as Microsoft.OpenApi.Any.OpenApiString;
         Assert.IsNotNull(nameValue, "Name property should exist.");
         Assert.AreEqual("InjectedProduct", nameValue.Value, "Name should be the injected value.");
+    }
+
+    /// <summary>
+    /// Verifies that enum schemas default to integer type with numeric values
+    /// when no <see cref="JsonStringEnumConverter"/> is configured.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_WhenNoJsonStringEnumConverterThenEnumSchemaIsInteger()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var getStatus = doc.Paths["/hubs/Enum/GetStatus"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        var responseSchema = getStatus.Responses["200"].Content["application/json"].Schema;
+        Assert.AreEqual("integer", responseSchema.Type, "Enum schema should be integer by default.");
+        Assert.IsNotNull(responseSchema.Enum, "Enum should have values.");
+        Assert.AreEqual(4, responseSchema.Enum.Count, "TestStatus has 4 values.");
+        Assert.IsInstanceOfType(responseSchema.Enum[0], typeof(Microsoft.OpenApi.Any.OpenApiInteger));
+    }
+
+    /// <summary>
+    /// Verifies that enum schemas use string type with enum names
+    /// when <see cref="JsonStringEnumConverter"/> is configured in options.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_WhenJsonStringEnumConverterConfiguredThenEnumSchemaIsString()
+    {
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var getStatus = doc.Paths["/hubs/Enum/GetStatus"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        var responseSchema = getStatus.Responses["200"].Content["application/json"].Schema;
+        Assert.AreEqual("string", responseSchema.Type, "Enum schema should be string with JsonStringEnumConverter.");
+        Assert.IsNotNull(responseSchema.Enum, "Enum should have values.");
+        Assert.AreEqual(4, responseSchema.Enum.Count, "TestStatus has 4 values.");
+        Assert.IsInstanceOfType(responseSchema.Enum[0], typeof(Microsoft.OpenApi.Any.OpenApiString));
+
+        var enumNames = responseSchema.Enum
+            .Cast<Microsoft.OpenApi.Any.OpenApiString>()
+            .Select(e => e.Value)
+            .ToList();
+        CollectionAssert.Contains(enumNames, "Pending");
+        CollectionAssert.Contains(enumNames, "Active");
+        CollectionAssert.Contains(enumNames, "Completed");
+        CollectionAssert.Contains(enumNames, "Failed");
+    }
+
+    /// <summary>
+    /// Verifies that enum property in a complex return type uses integer schema
+    /// by default and string schema when <see cref="JsonStringEnumConverter"/> is configured.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_WhenJsonStringEnumConverterConfiguredThenEnumPropertyInObjectIsString()
+    {
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        // TestResult is registered as a component schema because it's a complex object
+        Assert.IsTrue(doc.Components.Schemas.ContainsKey("TestResult"), "TestResult should be in components/schemas.");
+        var testResultSchema = doc.Components.Schemas["TestResult"];
+        Assert.IsTrue(testResultSchema.Properties.ContainsKey("status"), "TestResult should have 'status' property.");
+        var statusProp = testResultSchema.Properties["status"];
+        Assert.AreEqual("string", statusProp.Type, "Status property should be string with JsonStringEnumConverter.");
     }
 
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(

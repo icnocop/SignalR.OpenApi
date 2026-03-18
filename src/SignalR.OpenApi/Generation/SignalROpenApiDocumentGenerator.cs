@@ -596,14 +596,58 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
     private OpenApiSchema CreateEnumSchema(Type enumType)
     {
-        var names = Enum.GetNames(enumType);
-        var schema = new OpenApiSchema
+        if (this.ShouldSerializeEnumAsString(enumType))
         {
-            Type = "string",
-            Enum = names.Select(n => (Microsoft.OpenApi.Any.IOpenApiAny)new Microsoft.OpenApi.Any.OpenApiString(n)).ToList(),
-        };
+            var enumValues = new List<Microsoft.OpenApi.Any.IOpenApiAny>();
+            foreach (var value in Enum.GetValues(enumType))
+            {
+                var json = JsonSerializer.Serialize(value, enumType, this.options.JsonSerializerOptions);
+                var name = json.Trim('"');
+                enumValues.Add(new Microsoft.OpenApi.Any.OpenApiString(name));
+            }
 
-        return schema;
+            return new OpenApiSchema
+            {
+                Type = "string",
+                Enum = enumValues,
+            };
+        }
+
+        var intValues = new List<Microsoft.OpenApi.Any.IOpenApiAny>();
+        foreach (var value in Enum.GetValues(enumType))
+        {
+            intValues.Add(new Microsoft.OpenApi.Any.OpenApiInteger(Convert.ToInt32(value)));
+        }
+
+        return new OpenApiSchema
+        {
+            Type = "integer",
+            Enum = intValues,
+        };
+    }
+
+    /// <summary>
+    /// Determines whether the given enum type should be serialized as a string
+    /// based on the configured <see cref="JsonSerializerOptions"/> converters
+    /// and type-level <see cref="JsonConverterAttribute"/>.
+    /// </summary>
+    private bool ShouldSerializeEnumAsString(Type enumType)
+    {
+        var values = Enum.GetValues(enumType);
+        if (values.Length == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            var json = JsonSerializer.Serialize(values.GetValue(0), enumType, this.options.JsonSerializerOptions);
+            return json.Length > 0 && json[0] == '"';
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private OpenApiSchema CreatePolymorphicSchema(Type type, JsonPolymorphicAttribute polymorphicAttr)
