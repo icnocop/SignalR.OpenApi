@@ -258,6 +258,15 @@ var SignalROpenApiPlugin = function (system) {
       });
     }
 
+    // Browsers cannot send custom HTTP headers on WebSocket or
+    // Server-Sent Events connections. When custom headers are
+    // configured, fall back to Long Polling which includes headers
+    // with every HTTP request so the server can read them on each
+    // hub invocation.
+    if (options.headers && Object.keys(options.headers).length > 0) {
+      options.transport = signalR.HttpTransportType.LongPolling;
+    }
+
     var connection = new signalR.HubConnectionBuilder()
       .withUrl(hubPath, options)
       .withAutomaticReconnect()

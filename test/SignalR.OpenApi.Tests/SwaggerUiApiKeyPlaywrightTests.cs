@@ -197,6 +197,69 @@ public class SwaggerUiApiKeyPlaywrightTests : PageTest
             $"Should not get connection error. Body: {bodyText}\nConsole logs:\n{allLogs}");
     }
 
+    /// <summary>
+    /// Verifies that when apiKey headers are authorized, the plugin uses
+    /// Long Polling transport so that custom headers are sent with every
+    /// HTTP request (browsers cannot send custom headers on WebSocket).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_ApiKeyHeadersForceLongPollingTransport()
+    {
+        const string headerValue = "test-session-lp";
+
+        await Page.GotoAsync($"{baseUrl}/signalr-swagger/index.html");
+
+        var operationBlock = Page.Locator(".opblock");
+        await operationBlock.First.WaitForAsync(new() { Timeout = 15000 });
+
+        // Authorize with the apiKey value
+        await AuthorizeApiKeyAsync(headerValue);
+
+        // Track all requests to the hub endpoint to detect transport type.
+        // Long Polling sends repeated GET requests to the hub URL with the
+        // custom header. WebSocket would show a single upgrade request without it.
+        var pollRequestsWithHeader = 0;
+        var webSocketUpgradeDetected = false;
+
+        Page.Request += (_, request) =>
+        {
+            var url = request.Url;
+
+            // Detect WebSocket upgrade (SignalR WebSocket transport)
+            if (url.Contains("/hubs/basic") && request.IsNavigationRequest is false
+                && request.ResourceType == "websocket")
+            {
+                webSocketUpgradeDetected = true;
+            }
+
+            // Detect Long Polling GET requests carrying the custom header
+            if (url.Contains("/hubs/basic") && request.Method == "GET"
+                && !url.Contains("/negotiate"))
+            {
+                var header = request.Headers.GetValueOrDefault(TestHeaderName.ToLowerInvariant());
+                if (header == headerValue)
+                {
+                    Interlocked.Increment(ref pollRequestsWithHeader);
+                }
+            }
+        };
+
+        // Execute a hub method to trigger connection + invocation
+        await ExecuteSendMessageAsync();
+
+        // Wait for response and a few poll cycles
+        await Page.WaitForTimeoutAsync(5000);
+
+        Assert.IsFalse(
+            webSocketUpgradeDetected,
+            "Should not use WebSocket transport when apiKey headers are configured.");
+
+        Assert.IsTrue(
+            pollRequestsWithHeader > 0,
+            "Long Polling requests should include the custom header.");
+    }
+
     private static int GetAvailablePort()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
