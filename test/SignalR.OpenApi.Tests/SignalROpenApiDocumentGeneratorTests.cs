@@ -197,6 +197,70 @@ public class SignalROpenApiDocumentGeneratorTests
     }
 
     /// <summary>
+    /// Verifies that apiKey security schemes added via SecuritySchemes are emitted
+    /// in the document's components when an authorized hub exists.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_AddsApiKeySecurityScheme_WhenConfiguredViaSecuritySchemes()
+    {
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.SecuritySchemes["Impersonation"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Header,
+                Name = "X-Session-Id",
+                Description = "Session ID for impersonation.",
+            };
+        });
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Components.SecuritySchemes);
+        Assert.IsTrue(doc.Components.SecuritySchemes.ContainsKey("Impersonation"));
+
+        var scheme = doc.Components.SecuritySchemes["Impersonation"];
+        Assert.AreEqual(SecuritySchemeType.ApiKey, scheme.Type);
+        Assert.AreEqual(ParameterLocation.Header, scheme.In);
+        Assert.AreEqual("X-Session-Id", scheme.Name);
+        Assert.AreEqual("Session ID for impersonation.", scheme.Description);
+    }
+
+    /// <summary>
+    /// Verifies that both apiKey and HTTP Bearer security schemes can coexist
+    /// in the document when configured via SecuritySchemes.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_AddsMixedSecuritySchemes_WhenBothApiKeyAndBearerConfigured()
+    {
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT",
+            };
+            o.SecuritySchemes["Impersonation"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Header,
+                Name = "X-Session-Id",
+                Description = "Session ID for impersonation.",
+            };
+        });
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Components.SecuritySchemes);
+        Assert.AreEqual(2, doc.Components.SecuritySchemes.Count);
+        Assert.IsTrue(doc.Components.SecuritySchemes.ContainsKey("Bearer"));
+        Assert.IsTrue(doc.Components.SecuritySchemes.ContainsKey("Impersonation"));
+    }
+
+    /// <summary>
     /// Verifies no security schemes are added when authorized hubs exist but no schemes are configured.
     /// </summary>
     [TestMethod]
@@ -298,6 +362,42 @@ public class SignalROpenApiDocumentGeneratorTests
 
         Assert.IsNotNull(getUser.Security);
         Assert.IsTrue(getUser.Security.Count > 0);
+    }
+
+    /// <summary>
+    /// Verifies security requirements reference all configured schemes including apiKey.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_SecurityRequirementsIncludeApiKeyScheme()
+    {
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+            };
+            o.SecuritySchemes["Impersonation"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Header,
+                Name = "X-Session-Id",
+            };
+        });
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var getUser = doc.Paths["/hubs/Attribute/GetUserDetails"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        Assert.IsNotNull(getUser.Security);
+        Assert.AreEqual(1, getUser.Security.Count, "Should have one security requirement.");
+
+        var requirement = getUser.Security[0];
+        var schemeIds = requirement.Keys.Select(k => k.Reference.Id).ToList();
+        CollectionAssert.Contains(schemeIds, "Bearer", "Should reference Bearer scheme.");
+        CollectionAssert.Contains(schemeIds, "Impersonation", "Should reference Impersonation scheme.");
     }
 
     /// <summary>

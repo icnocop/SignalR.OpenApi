@@ -50,16 +50,29 @@ var SignalROpenApiPlugin = function (system) {
 
     var authState = state.toJS();
     var keys = Object.keys(authState);
-    if (keys.length === 0) {
-      return undefined;
+
+    for (var i = 0; i < keys.length; i++) {
+      var entry = authState[keys[i]];
+      if (!entry || !entry.schema) {
+        continue;
+      }
+
+      // HTTP Basic: return Base64-encoded credentials
+      if (entry.schema.type === "http" && entry.schema.scheme === "basic" && entry.value) {
+        return btoa(entry.value.username + ":" + entry.value.password);
+      }
+
+      // HTTP Bearer or OAuth2: return the token value
+      if (entry.value
+        && ((entry.schema.type === "http" && entry.schema.scheme !== "basic")
+          || entry.schema.type === "oauth2")) {
+        return entry.value;
+      }
+
+      // Skip apiKey schemes — handled by _getApiKeyHeaders()
     }
 
-    var entry = authState[keys[0]];
-    if (entry && entry.schema && entry.schema.type === "http" && entry.schema.scheme === "basic") {
-      return btoa(entry.value.username + ":" + entry.value.password);
-    }
-
-    return entry ? entry.value : undefined;
+    return undefined;
   };
 
   // Get apiKey header values entered in the SwaggerUI authorize dialog.
