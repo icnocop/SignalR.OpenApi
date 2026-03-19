@@ -37,4 +37,17 @@ public class SignalRSwaggerUiOptions
     /// always uses the real method name. Defaults to <see langword="true"/>.
     /// </summary>
     public bool StripAsyncSuffix { get; set; } = true;
+
+    /// <summary>
+    /// Gets the custom HTTP headers to include on every SignalR hub connection.
+    /// These headers are sent with the initial negotiate request and all long-polling
+    /// or server-sent-events requests. WebSocket connections carry them on the
+    /// initial upgrade request.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// options.Headers["X-Custom-Header"] = "value";
+    /// </code>
+    /// </example>
+    public IDictionary<string, string> Headers { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
 }

@@ -19,9 +19,11 @@ OpenAPI 3.1 specification generation and SwaggerUI support for ASP.NET Core Sign
 - FluentValidation rules mapped to OpenAPI schema constraints
 - Security scheme detection from `[Authorize]` / `[AllowAnonymous]`
 - JWT Bearer token support in SwaggerUI (header or query string)
+- Custom HTTP headers (static or user-enterable via SwaggerUI Authorize dialog)
 - Connection status indicator with automatic reconnection handling
 - Form-urlencoded input mode for primitive and flat object parameters
 - Multiple named request/response examples via custom attributes
+- Enum schema generation (integer or string based on `JsonStringEnumConverter`)
 - Embedded `@microsoft/signalr` bundle (no CDN dependency)
 - Zero proprietary attributes required for core functionality
 
@@ -75,6 +77,11 @@ builder.Services.AddSignalROpenApi(options =>
     {
         PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
     };
+
+    // User-enterable headers shown in the SwaggerUI Authorize dialog.
+    // Each entry appears as an apiKey security scheme (in: header) so users
+    // can enter a value at runtime before invoking hub methods.
+    options.ApiKeyHeaders["X-Custom-Header"] = "A custom header sent with every hub connection.";
 });
 
 builder.Services.AddSignalRSwaggerUi(options =>
@@ -83,6 +90,9 @@ builder.Services.AddSignalRSwaggerUi(options =>
     options.SpecUrl = "/openapi/signalr-v1.json"; // Spec endpoint (default)
     options.DocumentTitle = "SignalR API";       // Browser tab title (default)
     options.StripAsyncSuffix = true;             // Strip "Async" from display names (default)
+
+    // Static headers sent with every SignalR hub connection
+    options.Headers["X-Custom-Header"] = "MyValue";
 });
 ```
 
@@ -322,6 +332,61 @@ builder.Services.AddSignalRFluentValidation();
 
 Validators are resolved from DI via `IValidator<T>`. Nested child validators are supported.
 
+## Custom Headers
+
+Custom HTTP headers can be sent with every SignalR hub connection. Two approaches are available depending on whether the value is known at startup or entered by the user at runtime.
+
+### Static Headers
+
+Use `SignalRSwaggerUiOptions.Headers` to configure headers with fixed values. These are included in the negotiate request and all HTTP-based transports (long-polling, server-sent events). WebSocket connections carry them on the initial upgrade request.
+
+```csharp
+builder.Services.AddSignalRSwaggerUi(options =>
+{
+    options.Headers["X-Custom-Header"] = "MyValue";
+});
+```
+
+### User-Enterable Headers (Authorize Dialog)
+
+Use `SignalROpenApiOptions.ApiKeyHeaders` to define headers that appear in SwaggerUI's **Authorize** dialog. Each entry is rendered as an `apiKey` security scheme (`in: header`) in the OpenAPI document. Users can enter values at runtime before invoking hub methods.
+
+```csharp
+builder.Services.AddSignalROpenApi(options =>
+{
+    options.ApiKeyHeaders["X-Custom-Header"] = "A custom header sent with every hub connection.";
+});
+```
+
+When the user clicks the **Authorize** button in SwaggerUI, they see an input field for each configured header. The entered values are automatically included on every SignalR hub connection.
+
+| Approach | Where configured | User can change at runtime? |
+|----------|------------------|-----------------------------|
+| `SignalRSwaggerUiOptions.Headers` | Static value at startup | No |
+| `SignalROpenApiOptions.ApiKeyHeaders` | Authorize dialog input | Yes |
+
+Both approaches can be combined — static headers provide defaults while apiKey headers allow user overrides. When both define the same header name, the user-entered value from the Authorize dialog takes precedence.
+
+## Enum Schema Generation
+
+Enum types are automatically mapped to OpenAPI schemas. The schema format depends on whether a `JsonStringEnumConverter` is configured:
+
+| Converter | Schema Type | Example Values |
+|-----------|-------------|----------------|
+| None (default) | `integer` | `0`, `1`, `2` |
+| `JsonStringEnumConverter` | `string` with `enum` | `"Pending"`, `"Active"`, `"Completed"` |
+
+The converter is detected from `JsonSerializerOptions.Converters` (global) or `[JsonConverter]` on the enum type.
+
+```csharp
+// Global: all enums serialize as strings
+options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+// Per-type: only this enum serializes as strings
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum Status { Pending, Active, Completed }
+```
+
 ## Packages
 
 | Package | Description |
@@ -334,23 +399,26 @@ Validators are resolved from DI via `IValidator<T>`. Nested child validators are
 
 The following open-source projects also provide OpenAPI, SwaggerUI, or developer tooling for ASP.NET Core SignalR hubs. SignalR.OpenApi was designed with awareness of these projects and aims to combine the best aspects of each.
 
-| Feature | **SignalR.OpenApi** | [SigSpec](https://github.com/RicoSuter/SigSpec) | [SignalRSwaggerGen](https://github.com/essencebit/SignalRSwaggerGen) | [TypedSignalR.Client.DevTools](https://github.com/nenoNaninu/TypedSignalR.Client.DevTools) | [NSwag4SignalR](https://github.com/ben-voss/NSwag4SignalR) |
-|---|---|---|---|---|---|
-| **OpenAPI spec generation** | ✅ 3.1 | ✅ Custom (SigSpec) | ✅ Swagger 2.0 / OAS 3.0 | ✅ Custom (spec.json) | ✅ 3.0 |
-| **OpenAPI library** | `Microsoft.AspNetCore.OpenApi` | Custom | Swashbuckle `IDocumentFilter` | Custom | NSwag `IDocumentProcessor` |
-| **Interactive UI** | ✅ SwaggerUI (Swashbuckle) | ❌ | ❌ Spec only | ✅ Custom (Next.js / Bulma) | ✅ SwaggerUI (NSwag) |
-| **Real SignalR invocation** | ✅ `@microsoft/signalr` | ❌ | ❌ | ✅ `@microsoft/signalr` | ✅ `@microsoft/signalr` |
-| **Streaming UI** | ✅ Accumulated history, state tracking, stop button | ❌ | ❌ | ✅ Server-to-client & client-to-server | ✅ PUT operations |
-| **Client event monitoring** | ✅ Real-time event log panel | ❌ | ❌ | ✅ Event subscription | ✅ GET operations |
-| **Hub discovery** | Reflection | Reflection | Attribute-based (`[SignalRHub]`) | Source generator (`MapHub<T>()`) | Endpoint metadata (`HubMetadata`) |
-| **FluentValidation → schema** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Polymorphic types** | ✅ `oneOf`/`discriminator` + sub-endpoints | ❌ | ❌ | ❌ | ❌ |
-| **Form-urlencoded input** | ✅ Flat params & objects | ❌ | ❌ | ❌ | ❌ |
-| **Named examples** | ✅ Custom attributes + providers | ❌ | ❌ | ❌ | ❌ |
-| **Auth (JWT / Windows)** | ✅ Built-in SwaggerUI | ❌ | ✅ `[Authorize]` detection | ✅ `accessTokenFactory` | ❌ |
-| **Standard attributes** | ✅ `[Tags]`, `[EndpointSummary]`, `[Authorize]`, `[Obsolete]`, etc. | Partial | ✅ `[Authorize]`, custom | Partial | Partial |
-| **Target framework** | .NET 8+ | .NET Core 3.1+ | .NET 5+ | .NET 6+ | .NET 10 |
-| **NuGet packages** | 3 packages | ❌ | ✅ | ✅ | ❌ |
+| Feature                       | **SignalR.OpenApi**                                                | [SigSpec](https://github.com/RicoSuter/SigSpec) | [SignalRSwaggerGen](https://github.com/essencebit/SignalRSwaggerGen) | [TypedSignalR.Client.DevTools](https://github.com/nenoNaninu/TypedSignalR.Client.DevTools) | [NSwag4SignalR](https://github.com/ben-voss/NSwag4SignalR) |
+| ----------------------------- | ------------------------------------------------------------------ | ----------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| **OpenAPI spec generation**   | ✅ 3.1                                                              | ✅ Custom (SigSpec)                              | ✅ Swagger 2.0 / OAS 3.0                                              | ✅ Custom (spec.json)                                                                       | ✅ 3.0                                                      |
+| **OpenAPI library**           | `Microsoft.AspNetCore.OpenApi`                                     | Custom                                          | Swashbuckle `IDocumentFilter`                                        | Custom                                                                                     | NSwag `IDocumentProcessor`                                 |
+| **Interactive UI**            | ✅ SwaggerUI (Swashbuckle)                                          | ❌                                               | ❌ Spec only                                                          | ✅ Custom (Next.js / Bulma)                                                                 | ✅ SwaggerUI (NSwag)                                        |
+| **Real SignalR invocation**   | ✅ `@microsoft/signalr`                                             | ❌                                               | ❌                                                                    | ✅ `@microsoft/signalr`                                                                     | ✅ `@microsoft/signalr`                                     |
+| **Streaming UI**              | ✅ Accumulated history, state tracking, stop button                 | ❌                                               | ❌                                                                    | ✅ Server-to-client & client-to-server                                                      | ✅ PUT operations                                           |
+| **Client event monitoring**   | ✅ Real-time event log panel                                        | ❌                                               | ❌                                                                    | ✅ Event subscription                                                                       | ✅ GET operations                                           |
+| **Hub discovery**             | Reflection                                                         | Reflection                                      | Attribute-based (`[SignalRHub]`)                                     | Source generator (`MapHub<T>()`)                                                           | Endpoint metadata (`HubMetadata`)                          |
+| **FluentValidation → schema** | ✅                                                                  | ❌                                               | ❌                                                                    | ❌                                                                                          | ❌                                                          |
+| **Polymorphic types**         | ✅ `oneOf`/`discriminator` + sub-endpoints                          | ❌                                               | ❌                                                                    | ❌                                                                                          | ❌                                                          |
+| **Form-urlencoded input**     | ✅ Flat params & objects                                            | ❌                                               | ❌                                                                    | ❌                                                                                          | ❌                                                          |
+| **Named examples**            | ✅ Custom attributes + providers                                    | ❌                                               | ❌                                                                    | ❌                                                                                          | ❌                                                          |
+| **Auth (JWT / Windows)**      | ✅ Built-in SwaggerUI                                               | ❌                                               | ✅ `[Authorize]` detection                                            | ✅ `accessTokenFactory`                                                                     | ❌                                                          |
+| **Custom headers**            | ✅ Static + Authorize dialog                                        | ❌                                               | ❌                                                                    | ❌                                                                                          | ❌                                                          |
+| **Tag descriptions**          | ✅ Options + XML summary fallback                                   | ❌                                               | Partial (tags only)                                                  | ❌                                                                                          | ❌                                                          |
+| **Enum schema**               | ✅ Integer + `JsonStringEnumConverter`                               | ❌                                               | Partial (via Swashbuckle)                                            | ❌                                                                                          | ✅ (via NSwag)                                               |
+| **Standard attributes**       | ✅ `[Tags]`, `[EndpointSummary]`, `[Authorize]`, `[Obsolete]`, etc. | Partial                                         | ✅ `[Authorize]`, custom                                              | Partial                                                                                    | Partial                                                    |
+| **Target framework**          | .NET 8+                                                            | .NET Core 3.1+                                  | .NET 5+                                                              | .NET 6+                                                                                    | .NET 10                                                    |
+| **NuGet packages**            | 3 packages                                                         | ❌                                               | ✅                                                                    | ✅                                                                                          | ✅                                                          |
 
 ### Other related projects
 

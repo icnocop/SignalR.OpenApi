@@ -3,6 +3,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SignalR.OpenApi.Discovery;
 using SignalR.OpenApi.Generation;
@@ -1097,6 +1098,51 @@ public class SignalROpenApiDocumentGeneratorTests
         var tagNames = doc.Tags.Select(t => t.Name).ToList();
         var distinctNames = tagNames.Distinct().ToList();
         Assert.AreEqual(distinctNames.Count, tagNames.Count, "Document tags should be unique.");
+    }
+
+    /// <summary>
+    /// Verifies that ApiKeyHeaders are emitted as apiKey security schemes in the document.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_AddsApiKeyHeaderSchemes()
+    {
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.ApiKeyHeaders["X-Custom-Header"] = "A custom header.";
+            o.ApiKeyHeaders["X-Tenant-Id"] = "Tenant identifier.";
+        });
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Components.SecuritySchemes);
+        Assert.IsTrue(doc.Components.SecuritySchemes.ContainsKey("X-Custom-Header"));
+        Assert.IsTrue(doc.Components.SecuritySchemes.ContainsKey("X-Tenant-Id"));
+
+        var customHeader = doc.Components.SecuritySchemes["X-Custom-Header"];
+        Assert.AreEqual(SecuritySchemeType.ApiKey, customHeader.Type);
+        Assert.AreEqual(ParameterLocation.Header, customHeader.In);
+        Assert.AreEqual("X-Custom-Header", customHeader.Name);
+        Assert.AreEqual("A custom header.", customHeader.Description);
+    }
+
+    /// <summary>
+    /// Verifies that no apiKey schemes are added when ApiKeyHeaders is empty.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_NoApiKeyHeaders_DoesNotAddApiKeySchemes()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        if (doc.Components.SecuritySchemes is not null)
+        {
+            foreach (var scheme in doc.Components.SecuritySchemes.Values)
+            {
+                Assert.AreNotEqual(SecuritySchemeType.ApiKey, scheme.Type, "Should not have apiKey schemes when ApiKeyHeaders is empty.");
+            }
+        }
     }
 
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(

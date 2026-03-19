@@ -28,11 +28,20 @@ builder.Services.AddSignalROpenApi(options =>
     // Default: camelCase (matches ASP.NET Core default)
     // For PascalCase:
     options.JsonSerializerOptions.PropertyNamingPolicy = null;
+
+    // User-enterable headers shown in the SwaggerUI Authorize dialog.
+    // Each entry appears as an apiKey security scheme (in: header) so users
+    // can enter a value at runtime before invoking hub methods.
+    options.ApiKeyHeaders["X-Custom-Header"] = "A custom header sent with every hub connection.";
 });
 builder.Services.AddSignalRFluentValidation();
 builder.Services.AddSignalRSwaggerUi(options =>
 {
     options.StripAsyncSuffix = true;
+
+    // Custom headers sent with every SignalR hub connection.
+    // These are included in the negotiate request and all HTTP-based transports.
+    options.Headers["X-Custom-Header"] = "MyValue";
 });
 
 var app = builder.Build();

@@ -55,6 +55,28 @@ public class SwaggerUiIntegrationTests
         Assert.AreEqual("SignalR API", options.DocumentTitle);
         Assert.IsFalse(options.UseDefaultCredentials);
         Assert.IsTrue(options.StripAsyncSuffix);
+        Assert.AreEqual(0, options.Headers.Count);
+    }
+
+    /// <summary>
+    /// Verifies that custom headers can be configured.
+    /// </summary>
+    [TestMethod]
+    public void AddSignalRSwaggerUi_CustomHeaders()
+    {
+        var services = new ServiceCollection();
+        services.AddSignalRSwaggerUi(o =>
+        {
+            o.Headers["X-Custom-Header"] = "TestValue";
+            o.Headers["X-Another"] = "Other";
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<SignalRSwaggerUiOptions>>().Value;
+
+        Assert.AreEqual(2, options.Headers.Count);
+        Assert.AreEqual("TestValue", options.Headers["X-Custom-Header"]);
+        Assert.AreEqual("Other", options.Headers["X-Another"]);
     }
 
     /// <summary>

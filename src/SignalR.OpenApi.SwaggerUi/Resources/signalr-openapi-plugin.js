@@ -42,6 +42,32 @@ var SignalROpenApiPlugin = function (system) {
     return entry ? entry.value : undefined;
   };
 
+  // Get apiKey header values entered in the SwaggerUI authorize dialog.
+  // Returns an object mapping header names to their entered values,
+  // or null if no apiKey headers are authorized.
+  var _getApiKeyHeaders = function () {
+    var state = system.getState().get("auth").get("authorized");
+    if (!state) {
+      return null;
+    }
+
+    var authState = state.toJS();
+    var headers = null;
+
+    Object.keys(authState).forEach(function (key) {
+      var entry = authState[key];
+      if (entry && entry.schema && entry.schema.type === "apiKey" && entry.schema.in === "header" && entry.value) {
+        if (!headers) {
+          headers = {};
+        }
+
+        headers[entry.schema.name] = entry.value;
+      }
+    });
+
+    return headers;
+  };
+
   // Subscribe to all client events on a hub connection
   var _subscribeClientEvents = function (hubPath, hub) {
     var specJson = system.specSelectors.specJson().toJS();
@@ -172,9 +198,31 @@ var SignalROpenApiPlugin = function (system) {
     }
 
     var token = _getAccessToken();
+    var configs = system.getConfigs ? system.getConfigs() : {};
     var options = {};
     if (token) {
       options.accessTokenFactory = function () { return token; };
+    }
+
+    // Apply custom headers from configuration (e.g. "X-Custom-Header")
+    var configuredHeaders = configs.signalRHeaders;
+    if (configuredHeaders && typeof configuredHeaders === "object") {
+      options.headers = {};
+      Object.keys(configuredHeaders).forEach(function (key) {
+        options.headers[key] = configuredHeaders[key];
+      });
+    }
+
+    // Merge apiKey headers entered via the SwaggerUI Authorize dialog
+    var apiKeyHeaders = _getApiKeyHeaders();
+    if (apiKeyHeaders) {
+      if (!options.headers) {
+        options.headers = {};
+      }
+
+      Object.keys(apiKeyHeaders).forEach(function (key) {
+        options.headers[key] = apiKeyHeaders[key];
+      });
     }
 
     var connection = new signalR.HubConnectionBuilder()

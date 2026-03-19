@@ -91,4 +91,17 @@ public sealed class SignalROpenApiOptions
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
+
+    /// <summary>
+    /// Gets the custom header definitions that appear in the SwaggerUI Authorize dialog.
+    /// Each entry is rendered as an <c>apiKey</c> security scheme (<c>in: header</c>) in the
+    /// OpenAPI document, allowing users to enter header values at runtime.
+    /// The key is the header name and the value is the description shown in the dialog.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// options.ApiKeyHeaders["X-Custom-Header"] = "A custom header sent with every hub connection.";
+    /// </code>
+    /// </example>
+    public IDictionary<string, string> ApiKeyHeaders { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
 }

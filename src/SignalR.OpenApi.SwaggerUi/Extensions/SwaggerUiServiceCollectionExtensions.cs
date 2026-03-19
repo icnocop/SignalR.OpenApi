@@ -29,6 +29,12 @@ public static class SwaggerUiServiceCollectionExtensions
             o.SpecUrl = options.SpecUrl;
             o.DocumentTitle = options.DocumentTitle;
             o.UseDefaultCredentials = options.UseDefaultCredentials;
+            o.StripAsyncSuffix = options.StripAsyncSuffix;
+
+            foreach (var header in options.Headers)
+            {
+                o.Headers[header.Key] = header.Value;
+            }
         });
 
         return services;

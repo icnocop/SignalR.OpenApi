@@ -79,6 +79,8 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             AddSecuritySchemes(document);
         }
 
+        this.AddApiKeyHeaderSchemes(document);
+
         this.AddDocumentTags(document, hubs);
 
         return document;
@@ -376,6 +378,31 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         }
 
         return arr;
+    }
+
+    /// <summary>
+    /// Adds <c>apiKey</c> security schemes for each configured
+    /// <see cref="SignalROpenApiOptions.ApiKeyHeaders"/> entry.
+    /// </summary>
+    private void AddApiKeyHeaderSchemes(OpenApiDocument document)
+    {
+        if (this.options.ApiKeyHeaders.Count == 0)
+        {
+            return;
+        }
+
+        document.Components.SecuritySchemes ??= new Dictionary<string, OpenApiSecurityScheme>();
+
+        foreach (var header in this.options.ApiKeyHeaders)
+        {
+            document.Components.SecuritySchemes[header.Key] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Header,
+                Name = header.Key,
+                Description = header.Value,
+            };
+        }
     }
 
     /// <summary>
