@@ -21,6 +21,10 @@ var SignalROpenApiPlugin = function (system) {
   // Event log subscribers (components that need re-render on new events)
   var _eventListeners = {};
 
+  // Cached spec data to avoid repeated .toJS() conversions
+  var _cachedSpecVersion = null;
+  var _cachedSpecJs = null;
+
   // Get the Bearer token from the SwaggerUI authorize dialog
   var _getAccessToken = function () {
     var state = system.getState().get("auth").get("authorized");
@@ -479,6 +483,16 @@ var SignalROpenApiPlugin = function (system) {
     );
   }
 
+  var _getSpecJs = function () {
+    var specIm = system.specSelectors.specJson();
+    // Use the ImmutableJS hash or identity for cache invalidation
+    if (specIm !== _cachedSpecVersion) {
+      _cachedSpecVersion = specIm;
+      _cachedSpecJs = specIm.toJS();
+    }
+    return _cachedSpecJs;
+  };
+
   return {
     statePlugins: {
       spec: {
@@ -634,11 +648,11 @@ var SignalROpenApiPlugin = function (system) {
             if (method === "get") {
               props.operationProps = props.operationProps.set("method", "event");
             } else {
-              // Check if this is a streaming operation
-              var specJson = system.specSelectors.specJson().toJS();
-              var opSpec = specJson.paths && specJson.paths[path] && specJson.paths[path][method];
-              var ext = opSpec && opSpec["x-signalr"];
-              if (ext && ext.stream === true) {
+              // Use getIn() to access only the specific extension value
+              // instead of converting the entire spec with .toJS()
+              var specIm = system.specSelectors.specJson();
+              var streamFlag = specIm.getIn(["paths", path, method, "x-signalr", "stream"]);
+              if (streamFlag === true) {
                 props.operationProps = props.operationProps.set("method", "stream");
               } else {
                 props.operationProps = props.operationProps.set("method", "invoke");
@@ -745,11 +759,15 @@ var SignalROpenApiPlugin = function (system) {
             return React.createElement(Original, props);
           }
 
-          // Get the x-signalr extension
-          var specJson = system.specSelectors.specJson().toJS();
-          var opSpec = specJson.paths && specJson.paths[path] && specJson.paths[path][method];
-          var ext = opSpec && opSpec["x-signalr"];
-          if (!ext || !ext.clientEvent) {
+          // Use getIn() to access only the specific extension instead of .toJS()
+          var specIm = system.specSelectors.specJson();
+          var extIm = specIm.getIn(["paths", path, method, "x-signalr"]);
+          if (!extIm) {
+            return React.createElement(Original, props);
+          }
+
+          var ext = extIm.toJS ? extIm.toJS() : extIm;
+          if (!ext.clientEvent) {
             return React.createElement(Original, props);
           }
 

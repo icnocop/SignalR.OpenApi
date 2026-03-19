@@ -39,6 +39,19 @@ public class SignalRSwaggerUiOptions
     public bool StripAsyncSuffix { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether syntax highlighting is enabled
+    /// in SwaggerUI response bodies. Defaults to <see langword="true"/>.
+    /// </summary>
+    public bool SyntaxHighlight { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the default expand depth for models in SwaggerUI.
+    /// Set to <c>-1</c> to hide the models section entirely.
+    /// Defaults to <c>-1</c>.
+    /// </summary>
+    public int DefaultModelsExpandDepth { get; set; } = -1;
+
+    /// <summary>
     /// Gets the custom HTTP headers to include on every SignalR hub connection.
     /// These headers are sent with the initial negotiate request and all long-polling
     /// or server-sent-events requests. WebSocket connections carry them on the

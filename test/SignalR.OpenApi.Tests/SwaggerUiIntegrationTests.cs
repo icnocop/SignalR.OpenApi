@@ -56,6 +56,8 @@ public class SwaggerUiIntegrationTests
         Assert.IsFalse(options.UseDefaultCredentials);
         Assert.IsTrue(options.StripAsyncSuffix);
         Assert.AreEqual(0, options.Headers.Count);
+        Assert.IsTrue(options.SyntaxHighlight);
+        Assert.AreEqual(-1, options.DefaultModelsExpandDepth);
     }
 
     /// <summary>
@@ -77,6 +79,42 @@ public class SwaggerUiIntegrationTests
         Assert.AreEqual(2, options.Headers.Count);
         Assert.AreEqual("TestValue", options.Headers["X-Custom-Header"]);
         Assert.AreEqual("Other", options.Headers["X-Another"]);
+    }
+
+    /// <summary>
+    /// Verifies that syntax highlighting can be disabled.
+    /// </summary>
+    [TestMethod]
+    public void AddSignalRSwaggerUi_SyntaxHighlightDisabled()
+    {
+        var services = new ServiceCollection();
+        services.AddSignalRSwaggerUi(o =>
+        {
+            o.SyntaxHighlight = false;
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<SignalRSwaggerUiOptions>>().Value;
+
+        Assert.IsFalse(options.SyntaxHighlight);
+    }
+
+    /// <summary>
+    /// Verifies that the default models expand depth can be customized.
+    /// </summary>
+    [TestMethod]
+    public void AddSignalRSwaggerUi_CustomDefaultModelsExpandDepth()
+    {
+        var services = new ServiceCollection();
+        services.AddSignalRSwaggerUi(o =>
+        {
+            o.DefaultModelsExpandDepth = 2;
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<SignalRSwaggerUiOptions>>().Value;
+
+        Assert.AreEqual(2, options.DefaultModelsExpandDepth);
     }
 
     /// <summary>
@@ -183,6 +221,70 @@ public class SwaggerUiIntegrationTests
     }
 
     /// <summary>
+    /// Verifies that syntax highlighting is not disabled when SyntaxHighlight is true (default).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_SyntaxHighlightEnabledByDefault()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsFalse(content.Contains("\"syntaxHighlight\":false"), "Syntax highlighting should be enabled by default");
+    }
+
+    /// <summary>
+    /// Verifies that syntax highlighting is disabled when configured.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_SyntaxHighlightDisabledWhenConfigured()
+    {
+        using var host = await CreateTestHost(o => o.SyntaxHighlight = false);
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("syntaxHighlight"), "Syntax highlighting should be disabled in config");
+    }
+
+    /// <summary>
+    /// Verifies that the default models expand depth is set to -1 by default.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_DefaultModelsExpandDepthHiddenByDefault()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("defaultModelsExpandDepth"), "Config should include defaultModelsExpandDepth");
+    }
+
+    /// <summary>
+    /// Verifies that a custom default models expand depth is applied.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_CustomDefaultModelsExpandDepthApplied()
+    {
+        using var host = await CreateTestHost(o => o.DefaultModelsExpandDepth = 2);
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("defaultModelsExpandDepth"), "Config should include defaultModelsExpandDepth");
+    }
+
+    /// <summary>
     /// Verifies that the document includes hubPath in x-signalr extension.
     /// </summary>
     [TestMethod]
@@ -211,7 +313,7 @@ public class SwaggerUiIntegrationTests
         Assert.AreEqual("/hubs/basic", ((Microsoft.OpenApi.Any.OpenApiString)extension["hubPath"]).Value);
     }
 
-    private static async Task<IHost> CreateTestHost()
+    private static async Task<IHost> CreateTestHost(Action<SignalRSwaggerUiOptions>? configureUi = null)
     {
         return await new HostBuilder()
             .ConfigureWebHost(webBuilder =>
@@ -221,7 +323,7 @@ public class SwaggerUiIntegrationTests
                 {
                     services.AddSignalR();
                     services.AddSignalROpenApi();
-                    services.AddSignalRSwaggerUi();
+                    services.AddSignalRSwaggerUi(configureUi ?? (_ => { }));
                     services.AddRouting();
                 });
                 webBuilder.Configure(app =>

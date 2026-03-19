@@ -59,6 +59,15 @@ public static class SwaggerUiApplicationBuilderExtensions
                 c.ConfigObject.AdditionalItems["signalRHeaders"] = options.Headers;
             }
 
+            // Disable syntax highlighting if configured
+            if (!options.SyntaxHighlight)
+            {
+                c.ConfigObject.AdditionalItems["syntaxHighlight"] = false;
+            }
+
+            // Set default models expand depth
+            c.DefaultModelsExpandDepth(options.DefaultModelsExpandDepth);
+
             // Configure auth UI for JWT Bearer (standard SwaggerUI behavior)
             c.OAuthUsePkce();
         });

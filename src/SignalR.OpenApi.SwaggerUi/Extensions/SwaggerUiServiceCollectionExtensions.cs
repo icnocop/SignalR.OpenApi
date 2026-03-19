@@ -30,6 +30,8 @@ public static class SwaggerUiServiceCollectionExtensions
             o.DocumentTitle = options.DocumentTitle;
             o.UseDefaultCredentials = options.UseDefaultCredentials;
             o.StripAsyncSuffix = options.StripAsyncSuffix;
+            o.SyntaxHighlight = options.SyntaxHighlight;
+            o.DefaultModelsExpandDepth = options.DefaultModelsExpandDepth;
 
             foreach (var header in options.Headers)
             {

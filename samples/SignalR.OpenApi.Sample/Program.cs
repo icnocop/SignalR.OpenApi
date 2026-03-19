@@ -38,6 +38,7 @@ builder.Services.AddSignalRFluentValidation();
 builder.Services.AddSignalRSwaggerUi(options =>
 {
     options.StripAsyncSuffix = true;
+    options.DefaultModelsExpandDepth = 1;
 
     // Custom headers sent with every SignalR hub connection.
     // These are included in the negotiate request and all HTTP-based transports.

@@ -90,6 +90,8 @@ builder.Services.AddSignalRSwaggerUi(options =>
     options.SpecUrl = "/openapi/signalr-v1.json"; // Spec endpoint (default)
     options.DocumentTitle = "SignalR API";       // Browser tab title (default)
     options.StripAsyncSuffix = true;             // Strip "Async" from display names (default)
+    options.SyntaxHighlight = true;              // Enable syntax highlighting (default)
+    options.DefaultModelsExpandDepth = -1;       // Hide models section (default), 1 to show
 
     // Static headers sent with every SignalR hub connection
     options.Headers["X-Custom-Header"] = "MyValue";
