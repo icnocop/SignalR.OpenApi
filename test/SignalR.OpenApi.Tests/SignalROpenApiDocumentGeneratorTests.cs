@@ -1145,6 +1145,46 @@ public class SignalROpenApiDocumentGeneratorTests
         }
     }
 
+    /// <summary>
+    /// Verifies that a method with a complex object and a string parameter generates
+    /// a JSON-only wrapper schema with both parameters as named properties.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_WhenObjectAndStringParametersThenWrappedJsonOnlySchema()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        // BasicHub.SubmitFeedbackWithNote(FeedbackMessage feedback, string note)
+        var submitFeedback = doc.Paths["/hubs/Basic/SubmitFeedbackWithNote"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        Assert.IsNotNull(submitFeedback.RequestBody, "Should have a request body.");
+
+        // Should have JSON content type only (no form-urlencoded for mixed object+primitive)
+        Assert.IsTrue(submitFeedback.RequestBody.Content.ContainsKey("application/json"), "Should have application/json.");
+        Assert.IsFalse(submitFeedback.RequestBody.Content.ContainsKey("application/x-www-form-urlencoded"), "Mixed object+string should not have form-urlencoded.");
+
+        var schema = submitFeedback.RequestBody.Content["application/json"].Schema;
+        Assert.AreEqual("object", schema.Type, "Schema should be an object wrapper.");
+
+        // Both parameters should appear as named properties
+        Assert.IsTrue(schema.Properties.ContainsKey("feedback"), "Should contain 'feedback' property for the FeedbackMessage parameter.");
+        Assert.IsTrue(schema.Properties.ContainsKey("note"), "Should contain 'note' property for the string parameter.");
+        Assert.AreEqual(2, schema.Properties.Count, "Should have exactly 2 properties.");
+
+        // The 'note' property should be a string schema
+        Assert.AreEqual("string", schema.Properties["note"].Type, "The 'note' property should be a string type.");
+
+        // x-signalr should have parameterCount=2 and flattenedBody=false
+        var ext = (Microsoft.OpenApi.Any.OpenApiObject)submitFeedback.Extensions["x-signalr"];
+        var paramCount = (Microsoft.OpenApi.Any.OpenApiInteger)ext["parameterCount"];
+        Assert.AreEqual(2, paramCount.Value, "parameterCount should be 2.");
+        var flattenedBody = (Microsoft.OpenApi.Any.OpenApiBoolean)ext["flattenedBody"];
+        Assert.IsFalse(flattenedBody.Value, "flattenedBody should be false for mixed parameters.");
+    }
+
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(
         Action<SignalROpenApiOptions>? configure = null)
     {

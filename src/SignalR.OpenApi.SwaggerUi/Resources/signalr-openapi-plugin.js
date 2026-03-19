@@ -25,6 +25,22 @@ var SignalROpenApiPlugin = function (system) {
   var _cachedSpecVersion = null;
   var _cachedSpecJs = null;
 
+  // Format a SignalR error for display in the response panel.
+  // Logs the full error to the browser console and appends a hint
+  // about EnableDetailedErrors when the server returns a generic message.
+  var _formatSignalRError = function (err, context) {
+    console.error("[SignalR OpenAPI] " + context + ":", err);
+    var message = err.message || err.toString();
+    var result = message;
+    if (message.indexOf("due to an error on the server") !== -1
+      && message.indexOf("HubException") === -1) {
+      result += "\n\nHint: Enable detailed server errors for more information:\n"
+        + "  builder.Services.AddSignalR(options => { options.EnableDetailedErrors = true; });";
+    }
+
+    return result;
+  };
+
   // Get the Bearer token from the SwaggerUI authorize dialog
   var _getAccessToken = function () {
     var state = system.getState().get("auth").get("authorized");
@@ -596,7 +612,7 @@ var SignalROpenApiPlugin = function (system) {
                         },
                         error: function (err) {
                           var items = _streamItems[pathName] || [];
-                          _setResponse(500, _formatStreamResponse(items, "error: " + err.toString()));
+                          _setResponse(500, _formatStreamResponse(items, "error: " + _formatSignalRError(err, "Stream '" + methodName + "' failed")));
                           delete _streams[pathName];
                         },
                       });
@@ -610,12 +626,12 @@ var SignalROpenApiPlugin = function (system) {
                         _setResponse(status, result != null ? JSON.stringify(result, null, 2) : "");
                       })
                       .catch(function (err) {
-                        _setResponse(500, err.toString());
+                        _setResponse(500, _formatSignalRError(err, "Invoke '" + methodName + "' failed"));
                       });
                   }
                 })
                 .catch(function (err) {
-                  _setResponse(500, "Connection failed: " + err.toString());
+                  _setResponse(500, "Connection failed: " + _formatSignalRError(err, "Hub connection to '" + hubPath + "' failed"));
                 });
 
               return null;

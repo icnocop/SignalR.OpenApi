@@ -52,6 +52,18 @@ public interface IChatHub
     Task SendToGroupAsync(string group, string user, string message);
 
     /// <summary>
+    /// Submits feedback for a message, combining the original message with a note.
+    /// </summary>
+    /// <remarks>
+    /// This demonstrates hub methods with a complex object and a primitive string parameter.
+    /// The request body contains both parameters as named properties (JSON-only, no form encoding).
+    /// </remarks>
+    /// <param name="message">The message to provide feedback on.</param>
+    /// <param name="note">An additional note or comment about the message.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    Task SubmitFeedbackAsync(ChatMessage message, string note);
+
+    /// <summary>
     /// Sends a notification to a user. The notification type is polymorphic —
     /// use the "type" discriminator to select between "text" and "alert".
     /// </summary>

@@ -27,4 +27,15 @@ public class BasicHub : Hub
     {
         return Task.FromResult(DateTime.UtcNow);
     }
+
+    /// <summary>
+    /// Submits feedback with an additional note.
+    /// </summary>
+    /// <param name="feedback">The feedback message.</param>
+    /// <param name="note">An additional note for the feedback.</param>
+    /// <returns>A confirmation message.</returns>
+    public Task<string> SubmitFeedbackWithNote(FeedbackMessage feedback, string note)
+    {
+        return Task.FromResult($"{feedback.Sender}: {feedback.Content} — {note}");
+    }
 }

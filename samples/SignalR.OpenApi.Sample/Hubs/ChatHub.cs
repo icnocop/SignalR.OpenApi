@@ -34,6 +34,13 @@ public class ChatHub : Hub<IChatClient>, IChatHub
     }
 
     /// <inheritdoc />
+    [SignalROpenApiRequestExamples(typeof(SubmitFeedbackExamplesProvider))]
+    public async Task SubmitFeedbackAsync(ChatMessage message, string note)
+    {
+        await this.Clients.All.ReceiveMessage(message.User, $"[Feedback] {message.Message} — Note: {note}");
+    }
+
+    /// <inheritdoc />
     [Tags("Groups")]
     public async Task SendToGroupAsync(string group, string user, string message)
     {
