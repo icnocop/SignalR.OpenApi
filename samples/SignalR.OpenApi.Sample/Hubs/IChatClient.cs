@@ -1,5 +1,7 @@
 // Copyright (c) SignalR.OpenApi Contributors. Licensed under the MIT License.
 
+using Microsoft.AspNetCore.Http;
+
 namespace SignalR.OpenApi.Sample.Hubs;
 
 /// <summary>
@@ -20,6 +22,7 @@ public interface IChatClient
     /// </summary>
     /// <param name="user">The user who connected.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    [Tags("Presence")]
     Task UserConnected(string user);
 
     /// <summary>
@@ -28,5 +31,6 @@ public interface IChatClient
     /// </summary>
     /// <param name="notification">The notification that was received.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    [Tags("Notifications")]
     Task ReceiveNotification(Notification notification);
 }

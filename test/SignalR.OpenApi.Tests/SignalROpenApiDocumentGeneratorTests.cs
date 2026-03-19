@@ -1126,6 +1126,41 @@ public class SignalROpenApiDocumentGeneratorTests
     }
 
     /// <summary>
+    /// Verifies that a client event with [Tags] uses the custom tag instead of the default.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_ClientEventWithTagsAttribute_UsesCustomTag()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var userJoinedPath = doc.Paths["/hubs/TypedChat/events/UserJoined"];
+        var operation = userJoinedPath.Operations[OperationType.Get];
+        var tagNames = operation.Tags.Select(t => t.Name).ToList();
+
+        CollectionAssert.Contains(tagNames, "Presence");
+        CollectionAssert.DoesNotContain(tagNames, "TypedChat Events");
+    }
+
+    /// <summary>
+    /// Verifies that a client event without [Tags] falls back to the default "{HubName} Events" tag.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_ClientEventWithoutTagsAttribute_UsesDefaultTag()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var receiveMessagePath = doc.Paths["/hubs/TypedChat/events/ReceiveMessage"];
+        var operation = receiveMessagePath.Operations[OperationType.Get];
+        var tagNames = operation.Tags.Select(t => t.Name).ToList();
+
+        CollectionAssert.Contains(tagNames, "TypedChat Events");
+    }
+
+    /// <summary>
     /// Verifies that document tags are deduplicated when multiple methods share the same tag.
     /// </summary>
     [TestMethod]

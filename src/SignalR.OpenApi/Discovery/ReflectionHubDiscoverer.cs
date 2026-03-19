@@ -441,6 +441,7 @@ public sealed class ReflectionHubDiscoverer : IHubDiscoverer
                 Name = m.Name,
                 Summary = this.GetXmlSummary(m),
                 Description = this.GetXmlRemarks(m),
+                Tags = m.GetCustomAttribute<TagsAttribute>()?.Tags.ToList() ?? [],
                 Parameters = m.GetParameters()
                     .Select(p => new SignalRParameterInfo
                     {

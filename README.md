@@ -252,7 +252,8 @@ Explicit `TagDescriptions` always take precedence over XML summary fallback.
 |--------|----------|
 | Hub class (default) | Hub name without `Hub` suffix (e.g., `ChatHub` → `"Chat"`) |
 | `[Tags("group")]` on hub class or method | Specified tag name |
-| Client events (`Hub<TClient>`) | `"{HubName} Events"` (e.g., `"Chat Events"`) |
+| Client events (`Hub<TClient>`) default | `"{HubName} Events"` (e.g., `"Chat Events"`) |
+| `[Tags("group")]` on client interface method | Specified tag name (overrides default) |
 
 ## Request Body Schema
 

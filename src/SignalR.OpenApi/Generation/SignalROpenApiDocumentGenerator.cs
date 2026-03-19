@@ -1014,7 +1014,9 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
             var operation = new OpenApiOperation
             {
-                Tags = [new OpenApiTag { Name = $"{hub.Name} Events" }],
+                Tags = clientEvent.Tags.Count > 0
+                    ? clientEvent.Tags.Select(t => new OpenApiTag { Name = t }).ToList()
+                    : [new OpenApiTag { Name = $"{hub.Name} Events" }],
                 Summary = clientEvent.Summary ?? $"Client event: {clientEvent.Name}",
                 Description = clientEvent.Description ?? "Server-to-client callback. Subscribe to this event to receive notifications.",
                 OperationId = $"{hub.Name}_Event_{clientEvent.Name}",

@@ -1,5 +1,7 @@
 // Copyright (c) SignalR.OpenApi Contributors. Licensed under the MIT License.
 
+using Microsoft.AspNetCore.Http;
+
 namespace SignalR.OpenApi.Tests.TestHubs;
 
 /// <summary>
@@ -20,6 +22,7 @@ public interface IChatClient
     /// </summary>
     /// <param name="user">The user who joined.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    [Tags("Presence")]
     Task UserJoined(string user);
 
     /// <summary>

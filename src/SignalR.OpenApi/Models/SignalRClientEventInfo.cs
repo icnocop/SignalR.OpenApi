@@ -23,6 +23,12 @@ public sealed class SignalRClientEventInfo
     public string? Description { get; set; }
 
     /// <summary>
+    /// Gets or sets the tags for grouping in the OpenAPI document.
+    /// When empty, the generator falls back to the default "{HubName} Events" tag.
+    /// </summary>
+    public IReadOnlyList<string> Tags { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the parameter types of the client event.
     /// </summary>
     public IReadOnlyList<SignalRParameterInfo> Parameters { get; set; } = [];

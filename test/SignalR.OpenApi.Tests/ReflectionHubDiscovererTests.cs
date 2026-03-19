@@ -309,6 +309,34 @@ public class ReflectionHubDiscovererTests
         Assert.AreEqual("The user's name.", nameParam.Description);
     }
 
+    /// <summary>
+    /// Verifies Tags attribute is read from client event methods.
+    /// </summary>
+    [TestMethod]
+    public void DiscoverHubs_ReadsTagsAttributeOnClientEvent()
+    {
+        var discoverer = CreateDiscoverer();
+        var hubs = discoverer.DiscoverHubs();
+
+        var typed = hubs.First(h => h.HubType == typeof(TypedChatHub));
+        var userJoined = typed.ClientEvents.First(e => e.Name == "UserJoined");
+        CollectionAssert.Contains(userJoined.Tags.ToList(), "Presence");
+    }
+
+    /// <summary>
+    /// Verifies client events without Tags attribute have empty tags.
+    /// </summary>
+    [TestMethod]
+    public void DiscoverHubs_ClientEventWithoutTagsAttribute_HasEmptyTags()
+    {
+        var discoverer = CreateDiscoverer();
+        var hubs = discoverer.DiscoverHubs();
+
+        var typed = hubs.First(h => h.HubType == typeof(TypedChatHub));
+        var receiveMessage = typed.ClientEvents.First(e => e.Name == "ReceiveMessage");
+        Assert.AreEqual(0, receiveMessage.Tags.Count);
+    }
+
     private static ReflectionHubDiscoverer CreateDiscoverer(Action<SignalROpenApiOptions>? configure = null)
     {
         var options = new SignalROpenApiOptions
