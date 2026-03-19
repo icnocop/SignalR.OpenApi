@@ -58,6 +58,9 @@ public class SwaggerUiIntegrationTests
         Assert.AreEqual(0, options.Headers.Count);
         Assert.IsTrue(options.SyntaxHighlight);
         Assert.AreEqual(-1, options.DefaultModelsExpandDepth);
+        Assert.AreEqual(DocExpansion.List, options.DocExpansion);
+        Assert.IsFalse(options.SortTagsAlphabetically);
+        Assert.IsFalse(options.SortOperationsAlphabetically);
     }
 
     /// <summary>
@@ -115,6 +118,60 @@ public class SwaggerUiIntegrationTests
         var options = provider.GetRequiredService<IOptions<SignalRSwaggerUiOptions>>().Value;
 
         Assert.AreEqual(2, options.DefaultModelsExpandDepth);
+    }
+
+    /// <summary>
+    /// Verifies that DocExpansion can be configured via DI.
+    /// </summary>
+    [TestMethod]
+    public void AddSignalRSwaggerUi_CustomDocExpansion()
+    {
+        var services = new ServiceCollection();
+        services.AddSignalRSwaggerUi(o =>
+        {
+            o.DocExpansion = DocExpansion.None;
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<SignalRSwaggerUiOptions>>().Value;
+
+        Assert.AreEqual(DocExpansion.None, options.DocExpansion);
+    }
+
+    /// <summary>
+    /// Verifies that SortTagsAlphabetically can be configured via DI.
+    /// </summary>
+    [TestMethod]
+    public void AddSignalRSwaggerUi_SortTagsAlphabetically()
+    {
+        var services = new ServiceCollection();
+        services.AddSignalRSwaggerUi(o =>
+        {
+            o.SortTagsAlphabetically = true;
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<SignalRSwaggerUiOptions>>().Value;
+
+        Assert.IsTrue(options.SortTagsAlphabetically);
+    }
+
+    /// <summary>
+    /// Verifies that SortOperationsAlphabetically can be configured via DI.
+    /// </summary>
+    [TestMethod]
+    public void AddSignalRSwaggerUi_SortOperationsAlphabetically()
+    {
+        var services = new ServiceCollection();
+        services.AddSignalRSwaggerUi(o =>
+        {
+            o.SortOperationsAlphabetically = true;
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<SignalRSwaggerUiOptions>>().Value;
+
+        Assert.IsTrue(options.SortOperationsAlphabetically);
     }
 
     /// <summary>
@@ -282,6 +339,102 @@ public class SwaggerUiIntegrationTests
         var content = await response.Content.ReadAsStringAsync();
 
         Assert.IsTrue(content.Contains("defaultModelsExpandDepth"), "Config should include defaultModelsExpandDepth");
+    }
+
+    /// <summary>
+    /// Verifies that DocExpansion defaults to "list" in the SwaggerUI configObject.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_DocExpansionDefaultIsList()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("\"docExpansion\":\"list\""), "Default DocExpansion should be list");
+    }
+
+    /// <summary>
+    /// Verifies that DocExpansion.None is applied to the SwaggerUI configObject.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_DocExpansionNoneApplied()
+    {
+        using var host = await CreateTestHost(o => o.DocExpansion = DocExpansion.None);
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("\"docExpansion\":\"none\""), "DocExpansion should be none");
+    }
+
+    /// <summary>
+    /// Verifies that tagsSorter is not present by default.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_TagsSorterNotPresentByDefault()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsFalse(content.Contains("tagsSorter"), "tagsSorter should not be present by default");
+    }
+
+    /// <summary>
+    /// Verifies that tagsSorter is set to "alpha" when SortTagsAlphabetically is true.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_SortTagsAlphabeticallyApplied()
+    {
+        using var host = await CreateTestHost(o => o.SortTagsAlphabetically = true);
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("\"tagsSorter\":\"alpha\""), "tagsSorter should be alpha when enabled");
+    }
+
+    /// <summary>
+    /// Verifies that operationsSorter is not present by default.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_OperationsSorterNotPresentByDefault()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsFalse(content.Contains("operationsSorter"), "operationsSorter should not be present by default");
+    }
+
+    /// <summary>
+    /// Verifies that operationsSorter is set to "alpha" when SortOperationsAlphabetically is true.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_SortOperationsAlphabeticallyApplied()
+    {
+        using var host = await CreateTestHost(o => o.SortOperationsAlphabetically = true);
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/index.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("\"operationsSorter\":\"alpha\""), "operationsSorter should be alpha when enabled");
     }
 
     /// <summary>

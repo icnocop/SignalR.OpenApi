@@ -68,6 +68,21 @@ public static class SwaggerUiApplicationBuilderExtensions
             // Set default models expand depth
             c.DefaultModelsExpandDepth(options.DefaultModelsExpandDepth);
 
+            // Set doc expansion mode
+            c.DocExpansion((Swashbuckle.AspNetCore.SwaggerUI.DocExpansion)options.DocExpansion);
+
+            // Sort tags alphabetically if configured
+            if (options.SortTagsAlphabetically)
+            {
+                c.ConfigObject.AdditionalItems["tagsSorter"] = "alpha";
+            }
+
+            // Sort operations alphabetically if configured
+            if (options.SortOperationsAlphabetically)
+            {
+                c.ConfigObject.AdditionalItems["operationsSorter"] = "alpha";
+            }
+
             // Configure auth UI for JWT Bearer (standard SwaggerUI behavior)
             c.OAuthUsePkce();
         });

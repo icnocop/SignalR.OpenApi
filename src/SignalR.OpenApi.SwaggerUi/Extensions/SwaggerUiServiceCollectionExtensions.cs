@@ -32,6 +32,9 @@ public static class SwaggerUiServiceCollectionExtensions
             o.StripAsyncSuffix = options.StripAsyncSuffix;
             o.SyntaxHighlight = options.SyntaxHighlight;
             o.DefaultModelsExpandDepth = options.DefaultModelsExpandDepth;
+            o.DocExpansion = options.DocExpansion;
+            o.SortTagsAlphabetically = options.SortTagsAlphabetically;
+            o.SortOperationsAlphabetically = options.SortOperationsAlphabetically;
 
             foreach (var header in options.Headers)
             {

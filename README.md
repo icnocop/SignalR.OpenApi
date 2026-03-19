@@ -92,6 +92,9 @@ builder.Services.AddSignalRSwaggerUi(options =>
     options.StripAsyncSuffix = true;             // Strip "Async" from display names (default)
     options.SyntaxHighlight = true;              // Enable syntax highlighting (default)
     options.DefaultModelsExpandDepth = -1;       // Hide models section (default), 1 to show
+    options.DocExpansion = DocExpansion.List;     // Tag expand mode: List (default), Full, None
+    options.SortTagsAlphabetically = false;      // Sort tags A-Z (default: document order)
+    options.SortOperationsAlphabetically = false; // Sort operations A-Z (default: document order)
 
     // Static headers sent with every SignalR hub connection
     options.Headers["X-Custom-Header"] = "MyValue";

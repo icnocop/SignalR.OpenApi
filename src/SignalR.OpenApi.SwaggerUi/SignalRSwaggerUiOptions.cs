@@ -52,6 +52,26 @@ public class SignalRSwaggerUiOptions
     public int DefaultModelsExpandDepth { get; set; } = -1;
 
     /// <summary>
+    /// Gets or sets the default expansion setting for tags and operations in SwaggerUI.
+    /// Defaults to <see cref="SwaggerUi.DocExpansion.List"/> (tags expanded, operations collapsed).
+    /// </summary>
+    public DocExpansion DocExpansion { get; set; } = DocExpansion.List;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether tags (groups) are sorted
+    /// alphabetically in SwaggerUI. Defaults to <see langword="false"/>
+    /// (tags appear in the order defined by the OpenAPI document).
+    /// </summary>
+    public bool SortTagsAlphabetically { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether operations (endpoints)
+    /// within each tag are sorted alphabetically in SwaggerUI.
+    /// Defaults to <see langword="false"/> (operations appear in document order).
+    /// </summary>
+    public bool SortOperationsAlphabetically { get; set; }
+
+    /// <summary>
     /// Gets the custom HTTP headers to include on every SignalR hub connection.
     /// These headers are sent with the initial negotiate request and all long-polling
     /// or server-sent-events requests. WebSocket connections carry them on the
