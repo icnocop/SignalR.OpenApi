@@ -82,6 +82,16 @@ builder.Services.AddSignalROpenApi(options =>
     // Each entry appears as an apiKey security scheme (in: header) so users
     // can enter a value at runtime before invoking hub methods.
     options.ApiKeyHeaders["X-Custom-Header"] = "A custom header sent with every hub connection.";
+
+    // Security schemes applied to operations with [Authorize].
+    // Define the authentication methods that SwaggerUI exposes in the Authorize dialog.
+    options.SecuritySchemes["Bearer"] = new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "JWT Bearer token for SignalR hub authentication.",
+    };
 });
 
 builder.Services.AddSignalRSwaggerUi(options =>

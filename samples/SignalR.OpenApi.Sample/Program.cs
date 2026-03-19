@@ -1,6 +1,7 @@
 // Copyright (c) SignalR.OpenApi Contributors. Licensed under the MIT License.
 
 using FluentValidation;
+using Microsoft.OpenApi.Models;
 using SignalR.OpenApi.Extensions;
 using SignalR.OpenApi.Sample.Hubs;
 
@@ -33,6 +34,16 @@ builder.Services.AddSignalROpenApi(options =>
     // Each entry appears as an apiKey security scheme (in: header) so users
     // can enter a value at runtime before invoking hub methods.
     options.ApiKeyHeaders["X-Custom-Header"] = "A custom header sent with every hub connection.";
+
+    // Security schemes applied to operations with [Authorize].
+    // Define the authentication methods that SwaggerUI exposes in the Authorize dialog.
+    options.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "JWT Bearer token for SignalR hub authentication. The token is passed via the SignalR connection's accessTokenFactory.",
+    };
 });
 builder.Services.AddSignalRFluentValidation();
 builder.Services.AddSignalRSwaggerUi(options =>

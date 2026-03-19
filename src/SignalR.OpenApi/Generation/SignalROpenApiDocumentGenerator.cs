@@ -76,7 +76,7 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
         if (requiresAuth)
         {
-            AddSecuritySchemes(document);
+            this.AddConfiguredSecuritySchemes(document);
         }
 
         this.AddApiKeyHeaderSchemes(document);
@@ -136,19 +136,6 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         }
 
         operation.Extensions["x-signalr"] = extension;
-    }
-
-    private static void AddSecuritySchemes(OpenApiDocument document)
-    {
-        document.Components.SecuritySchemes ??= new Dictionary<string, OpenApiSecurityScheme>();
-
-        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
-        {
-            Type = SecuritySchemeType.Http,
-            Scheme = "bearer",
-            BearerFormat = "JWT",
-            Description = "JWT Bearer token for SignalR hub authentication. The token is passed via the SignalR connection's accessTokenFactory.",
-        };
     }
 
     private static void ApplyDataAnnotations(OpenApiSchema schema, ICustomAttributeProvider member)
@@ -378,6 +365,25 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         }
 
         return arr;
+    }
+
+    /// <summary>
+    /// Adds the user-configured security schemes from
+    /// <see cref="SignalROpenApiOptions.SecuritySchemes"/> to the document.
+    /// </summary>
+    private void AddConfiguredSecuritySchemes(OpenApiDocument document)
+    {
+        if (this.options.SecuritySchemes.Count == 0)
+        {
+            return;
+        }
+
+        document.Components.SecuritySchemes ??= new Dictionary<string, OpenApiSecurityScheme>();
+
+        foreach (var scheme in this.options.SecuritySchemes)
+        {
+            document.Components.SecuritySchemes[scheme.Key] = scheme.Value;
+        }
     }
 
     /// <summary>
@@ -1151,24 +1157,26 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             };
         }
 
-        // Security
-        if (method.RequiresAuthorization || (hub.RequiresAuthorization && !method.AllowAnonymous))
+        // Security — reference every configured scheme so the lock icon
+        // and Authorize dialog cover all authentication methods.
+        if ((method.RequiresAuthorization || (hub.RequiresAuthorization && !method.AllowAnonymous))
+            && this.options.SecuritySchemes.Count > 0)
         {
-            operation.Security =
-            [
-                new OpenApiSecurityRequirement
+            var requirement = new OpenApiSecurityRequirement();
+            foreach (var schemeId in this.options.SecuritySchemes.Keys)
+            {
+                var schemeRef = new OpenApiSecurityScheme
                 {
-                    [new OpenApiSecurityScheme
+                    Reference = new OpenApiReference
                     {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer",
-                        },
-                    }
-                    ] = [],
-                },
-            ];
+                        Type = ReferenceType.SecurityScheme,
+                        Id = schemeId,
+                    },
+                };
+                requirement[schemeRef] = [];
+            }
+
+            operation.Security = [requirement];
         }
 
         var isFlattened = method.Parameters.Count == 1

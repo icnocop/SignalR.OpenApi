@@ -2,6 +2,7 @@
 
 using System.Reflection;
 using System.Text.Json;
+using Microsoft.OpenApi.Models;
 
 namespace SignalR.OpenApi;
 
@@ -104,4 +105,23 @@ public sealed class SignalROpenApiOptions
     /// </code>
     /// </example>
     public IDictionary<string, string> ApiKeyHeaders { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the security schemes to include in the OpenAPI document when hubs
+    /// require authorization. Each entry is added to <c>components/securitySchemes</c>
+    /// and referenced in the <c>security</c> section of operations with
+    /// <c>[Authorize]</c>. When empty, no authentication scheme is emitted.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// options.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+    /// {
+    ///     Type = SecuritySchemeType.Http,
+    ///     Scheme = "bearer",
+    ///     BearerFormat = "JWT",
+    ///     Description = "JWT Bearer token for SignalR hub authentication.",
+    /// };
+    /// </code>
+    /// </example>
+    public IDictionary<string, OpenApiSecurityScheme> SecuritySchemes { get; } = new Dictionary<string, OpenApiSecurityScheme>(StringComparer.Ordinal);
 }

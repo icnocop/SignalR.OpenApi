@@ -172,17 +172,50 @@ public class SignalROpenApiDocumentGeneratorTests
     }
 
     /// <summary>
-    /// Verifies security schemes are added when authorized hubs exist.
+    /// Verifies security schemes are added when authorized hubs exist and schemes are configured.
     /// </summary>
     [TestMethod]
-    public void GenerateDocument_AddsSecuritySchemes_WhenAuthorizedHubExists()
+    public void GenerateDocument_AddsSecuritySchemes_WhenAuthorizedHubExistsAndSchemesConfigured()
     {
-        var (discoverer, generator) = CreateServices();
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT",
+                Description = "JWT Bearer token.",
+            };
+        });
+
         var hubs = discoverer.DiscoverHubs();
         var doc = generator.GenerateDocument(hubs);
 
         Assert.IsNotNull(doc.Components.SecuritySchemes);
         Assert.IsTrue(doc.Components.SecuritySchemes.ContainsKey("Bearer"));
+        Assert.AreEqual(SecuritySchemeType.Http, doc.Components.SecuritySchemes["Bearer"].Type);
+    }
+
+    /// <summary>
+    /// Verifies no security schemes are added when authorized hubs exist but no schemes are configured.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_NoSecuritySchemes_WhenNoneConfigured()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        if (doc.Components.SecuritySchemes is not null)
+        {
+            foreach (var scheme in doc.Components.SecuritySchemes.Values)
+            {
+                Assert.AreNotEqual(
+                    SecuritySchemeType.Http,
+                    scheme.Type,
+                    "Should not have HTTP auth schemes when SecuritySchemes is empty.");
+            }
+        }
     }
 
     /// <summary>
@@ -247,7 +280,15 @@ public class SignalROpenApiDocumentGeneratorTests
     [TestMethod]
     public void GenerateDocument_SetsSecurityOnAuthorizedMethods()
     {
-        var (discoverer, generator) = CreateServices();
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+            };
+        });
+
         var hubs = discoverer.DiscoverHubs();
         var doc = generator.GenerateDocument(hubs);
 
