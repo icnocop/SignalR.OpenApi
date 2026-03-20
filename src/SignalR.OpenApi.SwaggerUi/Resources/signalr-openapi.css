@@ -88,3 +88,38 @@
 .signalr-event-entry:last-child {
   border-bottom: none;
 }
+
+/* Hub connection control bar displayed within each tag section */
+.signalr-hub-connection-bar {
+  display: flex;
+  align-items: center;
+  padding: 6px 20px;
+  background: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.signalr-connect-btn {
+  font-size: 12px !important;
+  padding: 3px 10px !important;
+  background: #49cc90 !important;
+  color: #fff !important;
+  border-color: #49cc90 !important;
+}
+
+.signalr-connect-btn:hover {
+  background: #3bb878 !important;
+}
+
+.signalr-disconnect-btn {
+  font-size: 12px !important;
+  padding: 3px 10px !important;
+  background: #f93e3e !important;
+  color: #fff !important;
+  border-color: #f93e3e !important;
+}
+
+.signalr-disconnect-btn:hover {
+  background: #e02020 !important;
+}

@@ -9,6 +9,10 @@ var SignalROpenApiPlugin = function (system) {
   // Active hub connections keyed by hub path (e.g. "/hubs/chat")
   var _hubs = {};
 
+  // Auth fingerprint at connection time, keyed by hub path.
+  // Used to detect credential changes so the connection can be recycled.
+  var _hubAuthFingerprints = {};
+
   // Active stream subscriptions keyed by operation path (e.g. "/hubs/Chat/Countdown")
   var _streams = {};
 
@@ -99,6 +103,26 @@ var SignalROpenApiPlugin = function (system) {
     });
 
     return headers;
+  };
+
+  // Compute a fingerprint of the current auth state (token + apiKey headers).
+  // Returns a stable string that changes whenever credentials change.
+  var _computeAuthFingerprint = function () {
+    var parts = [];
+    var token = _getAccessToken();
+    if (token) {
+      parts.push("token:" + token);
+    }
+
+    var apiKeys = _getApiKeyHeaders();
+    if (apiKeys) {
+      var sortedKeys = Object.keys(apiKeys).sort();
+      for (var i = 0; i < sortedKeys.length; i++) {
+        parts.push("apiKey:" + sortedKeys[i] + "=" + apiKeys[sortedKeys[i]]);
+      }
+    }
+
+    return parts.join("|");
   };
 
   // Subscribe to all client events on a hub connection
@@ -224,8 +248,62 @@ var SignalROpenApiPlugin = function (system) {
     });
   };
 
-  // Get or create a HubConnection for the given hub path
+  // Disconnect and clean up a hub connection.
+  // Cancels active streams, removes the cached connection and fingerprint,
+  // and notifies UI listeners so components re-render.
+  var _disconnectHub = function (hubPath) {
+    // Cancel all active streams on this hub
+    Object.keys(_streams).forEach(function (streamPath) {
+      var specIm = system.specSelectors.specJson();
+      var ext = specIm.getIn(["paths", streamPath, "post", "x-signalr"]);
+      if (!ext) {
+        return;
+      }
+
+      var streamHubPath = ext.get("hubPath") || ("/" + ext.get("hub").toLowerCase());
+      if (streamHubPath === hubPath && _streams[streamPath]) {
+        _streams[streamPath].dispose();
+        delete _streams[streamPath];
+        delete _streamItems[streamPath];
+      }
+    });
+
+    var hub = _hubs[hubPath];
+    delete _hubs[hubPath];
+    delete _hubAuthFingerprints[hubPath];
+
+    var _notifyListeners = function () {
+      if (_eventListeners[hubPath]) {
+        _eventListeners[hubPath].forEach(function (fn) { fn(); });
+      }
+    };
+
+    if (hub) {
+      return hub.stop().then(_notifyListeners).catch(function (err) {
+        console.error("[SignalR OpenAPI] Disconnect error:", err);
+        _notifyListeners();
+      });
+    }
+
+    _notifyListeners();
+    return Promise.resolve();
+  };
+
+  // Get or create a HubConnection for the given hub path.
+  // If auth credentials changed since the connection was established,
+  // the existing connection is torn down and a fresh one is created.
   var _getOrCreateHub = function (hubPath) {
+    var currentFingerprint = _computeAuthFingerprint();
+
+    // If a connection exists but auth changed, disconnect first
+    if (_hubs[hubPath]
+      && _hubs[hubPath].state === signalR.HubConnectionState.Connected
+      && _hubAuthFingerprints[hubPath] !== currentFingerprint) {
+      return _disconnectHub(hubPath).then(function () {
+        return _getOrCreateHub(hubPath);
+      });
+    }
+
     if (_hubs[hubPath] && _hubs[hubPath].state === signalR.HubConnectionState.Connected) {
       return Promise.resolve(_hubs[hubPath]);
     }
@@ -273,6 +351,9 @@ var SignalROpenApiPlugin = function (system) {
       .build();
 
     _hubs[hubPath] = connection;
+
+    // Store the auth fingerprint so we can detect changes later
+    _hubAuthFingerprints[hubPath] = currentFingerprint;
 
     // Track connection state changes for UI updates
     connection.onreconnecting(function () {
@@ -323,6 +404,50 @@ var SignalROpenApiPlugin = function (system) {
   // Extract the hub route from a path like /hubs/Chat/SendMessage
   var _getHubRoute = function (signalrExt) {
     return signalrExt.hubPath || ("/" + signalrExt.hub.toLowerCase());
+  };
+
+  // Discover all unique hub paths from the spec's x-signalr extensions.
+  // Returns an array of { hubPath, hubName } objects.
+  var _getHubPaths = function () {
+    var specIm = system.specSelectors.specJson();
+    var pathsIm = specIm.get("paths");
+    if (!pathsIm) {
+      return [];
+    }
+
+    var hubSet = {};
+    pathsIm.keySeq().forEach(function (path) {
+      if (!_isSignalRPath(path)) {
+        return;
+      }
+
+      var methods = ["post", "get"];
+      for (var mi = 0; mi < methods.length; mi++) {
+        var ext = specIm.getIn(["paths", path, methods[mi], "x-signalr"]);
+        if (ext) {
+          var hubName = ext.get("hub");
+          var hubPath = ext.get("hubPath") || ("/" + hubName.toLowerCase());
+          hubSet[hubPath] = hubName;
+        }
+      }
+    });
+
+    return Object.keys(hubSet).map(function (hp) {
+      return { hubPath: hp, hubName: hubSet[hp] };
+    });
+  };
+
+  // Get the hub path associated with a given tag name.
+  // Tags correspond to hub names in the generated OpenAPI spec.
+  var _getHubPathForTag = function (tagName) {
+    var hubs = _getHubPaths();
+    for (var i = 0; i < hubs.length; i++) {
+      if (hubs[i].hubName === tagName) {
+        return hubs[i].hubPath;
+      }
+    }
+
+    return null;
   };
 
    // Parse request body from the SwaggerUI OAS3 state.
@@ -415,6 +540,95 @@ var SignalROpenApiPlugin = function (system) {
     };
     return JSON.stringify(result, null, 2);
   };
+
+  // React component for hub connection control bar.
+  // Renders inside each tag header to show connection status
+  // and provide Connect / Disconnect buttons.
+  function SignalRHubConnectionBar(props) {
+    var React = system.React;
+    var hubPath = props.hubPath;
+
+    var stateHook = React.useState(0);
+    var forceUpdate = stateHook[1];
+
+    var hub = _hubs[hubPath];
+    var connectionState = hub ? hub.state : null;
+    var isConnected = connectionState === signalR.HubConnectionState.Connected;
+    var isConnecting = connectionState === signalR.HubConnectionState.Connecting
+      || connectionState === signalR.HubConnectionState.Reconnecting;
+
+    var connectingHook = React.useState(false);
+    var isManualConnecting = connectingHook[0];
+    var setManualConnecting = connectingHook[1];
+
+    React.useEffect(function () {
+      var listener = function () { forceUpdate(function (n) { return n + 1; }); };
+
+      if (!_eventListeners[hubPath]) {
+        _eventListeners[hubPath] = [];
+      }
+
+      _eventListeners[hubPath].push(listener);
+
+      return function () {
+        var idx = _eventListeners[hubPath].indexOf(listener);
+        if (idx >= 0) {
+          _eventListeners[hubPath].splice(idx, 1);
+        }
+      };
+    }, [hubPath]);
+
+    var handleConnect = function () {
+      setManualConnecting(true);
+      _getOrCreateHub(hubPath)
+        .then(function () {
+          setManualConnecting(false);
+          forceUpdate(function (n) { return n + 1; });
+        })
+        .catch(function (err) {
+          setManualConnecting(false);
+          console.error("[SignalR OpenAPI] Manual connect failed:", err);
+          forceUpdate(function (n) { return n + 1; });
+        });
+    };
+
+    var handleDisconnect = function () {
+      _disconnectHub(hubPath).then(function () {
+        forceUpdate(function (n) { return n + 1; });
+      });
+    };
+
+    var showConnecting = isConnecting || isManualConnecting;
+
+    var statusClass = isConnected
+      ? "signalr-status--connected"
+      : showConnecting
+        ? "signalr-status--connecting"
+        : "signalr-status--disconnected";
+
+    var statusText = isConnected
+      ? "Connected"
+      : showConnecting
+        ? "Connecting\u2026"
+        : "Disconnected";
+
+    return React.createElement("div", {
+      className: "signalr-hub-connection-bar",
+      onClick: function (e) { e.stopPropagation(); },
+    },
+      React.createElement("span", {
+        className: "signalr-status " + statusClass,
+      }, statusText),
+      !isConnected && !showConnecting && React.createElement("button", {
+        className: "btn signalr-connect-btn",
+        onClick: handleConnect,
+      }, "Connect"),
+      isConnected && React.createElement("button", {
+        className: "btn signalr-disconnect-btn",
+        onClick: handleDisconnect,
+      }, "Disconnect")
+    );
+  }
 
   // React component for client event log panel
   function SignalREventLog(props) {
@@ -707,6 +921,37 @@ var SignalROpenApiPlugin = function (system) {
           }
 
           return React.createElement(Original, props);
+        };
+      },
+      // Inject a connection status bar into each SignalR hub tag header.
+      // OperationTag renders the collapsible tag section; we append the
+      // SignalRHubConnectionBar below the original tag header content.
+      OperationTag: function (Original, system) {
+        return function (props) {
+          var React = system.React;
+          var result = React.createElement(Original, props);
+
+          // props.tag is the tag name (ImmutableJS or plain string)
+          var tagName = props.tag;
+          if (tagName && tagName.toJS) {
+            tagName = tagName.toJS();
+          } else if (tagName && typeof tagName.get === "function") {
+            tagName = tagName.get(0) || tagName;
+          }
+
+          if (typeof tagName !== "string") {
+            return result;
+          }
+
+          var hubPath = _getHubPathForTag(tagName);
+          if (!hubPath) {
+            return result;
+          }
+
+          return React.createElement("div", null,
+            React.createElement(SignalRHubConnectionBar, { hubPath: hubPath }),
+            result
+          );
         };
       },
       // Hide curl command for SignalR operations

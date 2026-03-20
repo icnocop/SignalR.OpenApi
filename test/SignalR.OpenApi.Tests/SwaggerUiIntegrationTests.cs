@@ -466,6 +466,89 @@ public class SwaggerUiIntegrationTests
         Assert.AreEqual("/hubs/basic", ((Microsoft.OpenApi.Any.OpenApiString)extension["hubPath"]).Value);
     }
 
+    /// <summary>
+    /// Verifies that the plugin JS contains the _disconnectHub function.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task PluginJs_ContainsDisconnectHubFunction()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi-plugin.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("_disconnectHub"), "Plugin JS should contain _disconnectHub function");
+    }
+
+    /// <summary>
+    /// Verifies that the plugin JS contains the auth fingerprint mechanism.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task PluginJs_ContainsAuthFingerprint()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi-plugin.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("_computeAuthFingerprint"), "Plugin JS should contain _computeAuthFingerprint function");
+        Assert.IsTrue(content.Contains("_hubAuthFingerprints"), "Plugin JS should track auth fingerprints per hub");
+    }
+
+    /// <summary>
+    /// Verifies that the plugin JS contains the SignalRHubConnectionBar component.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task PluginJs_ContainsConnectionBarComponent()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi-plugin.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("SignalRHubConnectionBar"), "Plugin JS should contain SignalRHubConnectionBar component");
+    }
+
+    /// <summary>
+    /// Verifies that the plugin JS contains the OperationTag wrapper.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task PluginJs_ContainsOperationTagWrapper()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi-plugin.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("OperationTag"), "Plugin JS should contain OperationTag wrapper component");
+    }
+
+    /// <summary>
+    /// Verifies that the CSS contains connection bar styles.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task Css_ContainsConnectionBarStyles()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi.css");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("signalr-hub-connection-bar"), "CSS should contain connection bar styles");
+        Assert.IsTrue(content.Contains("signalr-connect-btn"), "CSS should contain connect button styles");
+        Assert.IsTrue(content.Contains("signalr-disconnect-btn"), "CSS should contain disconnect button styles");
+    }
+
     private static async Task<IHost> CreateTestHost(Action<SignalRSwaggerUiOptions>? configureUi = null)
     {
         return await new HostBuilder()

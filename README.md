@@ -21,6 +21,8 @@ OpenAPI 3.1 specification generation and SwaggerUI support for ASP.NET Core Sign
 - JWT Bearer token support in SwaggerUI (header or query string)
 - Custom HTTP headers (static or user-enterable via SwaggerUI Authorize dialog)
 - Connection status indicator with automatic reconnection handling
+- Automatic credential change detection with transparent reconnection
+- Per-hub Connect / Disconnect buttons in SwaggerUI
 - Form-urlencoded input mode for primitive and flat object parameters
 - Multiple named request/response examples via custom attributes
 - Enum schema generation (integer or string based on `JsonStringEnumConverter`)
@@ -147,6 +149,20 @@ Client events (from `Hub<TClient>` interface methods) appear as **EVENT** operat
 - **Clear Log**: Button to reset the event history
 
 Events are automatically subscribed when connecting to a hub via any invoke or stream operation.
+
+### Connection Management
+
+Each hub tag section in SwaggerUI displays a connection control bar showing the current connection status with **Connect** and **Disconnect** buttons.
+
+| Status | Description |
+|--------|-------------|
+| **Connected** | Hub connection is active; a Disconnect button is available |
+| **Disconnected** | No active connection; a Connect button is available |
+| **Connecting…** | Connection is being established or reconnecting |
+
+**Auto-connect on Execute**: Clicking Execute on any hub method automatically connects if not already connected — you do not need to click Connect first.
+
+**Credential change detection**: When you change API keys or Bearer tokens in the SwaggerUI Authorize dialog, the plugin automatically detects the change on the next hub method invocation and reconnects with the updated credentials. You can also manually disconnect and reconnect to pick up new credentials immediately.
 
 ### Request Body Input Modes
 
