@@ -586,6 +586,25 @@ public class SwaggerUiIntegrationTests
     }
 
     /// <summary>
+    /// Verifies that the plugin JS uses alphabetical sorting for the primary
+    /// tag when tagsSorter is "alpha", so the connection bar renders above
+    /// the first alphabetically-sorted tag section for each hub.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task PluginJs_UsesAlphabeticalPrimaryTagWhenTagsSorterAlpha()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi-plugin.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("configs.tagsSorter === \"alpha\""), "Plugin JS should check tagsSorter config for alphabetical sorting");
+        Assert.IsTrue(content.Contains("localeCompare"), "Plugin JS should sort tags alphabetically when tagsSorter is alpha");
+    }
+
+    /// <summary>
     /// Verifies that the CSS contains connection bar styles.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>

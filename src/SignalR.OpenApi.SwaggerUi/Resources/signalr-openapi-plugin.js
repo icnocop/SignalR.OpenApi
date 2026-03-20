@@ -489,30 +489,46 @@ var SignalROpenApiPlugin = function (system) {
       });
     }
 
-    // Determine the primary tag per hub using the document-level tags
-    // array, which defines the order SwaggerUI renders tag sections.
-    // This ensures the connection bar appears above the first visible
-    // tag section for each hub, not at a path-scan-order position.
+    // Determine the primary tag per hub — the first tag SwaggerUI
+    // actually renders for each hub. When tagsSorter is "alpha",
+    // SwaggerUI sorts tags alphabetically, overriding document order.
+    // Otherwise the document-level tags array defines render order.
     var hubPrimaryTag = {};
-    var docTagsIm = specIm.get("tags");
-    if (docTagsIm) {
-      docTagsIm.forEach(function (tagObj) {
-        var name = tagObj && typeof tagObj.get === "function"
-          ? tagObj.get("name")
-          : (typeof tagObj === "string" ? tagObj : null);
-        if (name && tagMap[name] && !hubPrimaryTag[tagMap[name]]) {
-          hubPrimaryTag[tagMap[name]] = name;
+    var configs = system.getConfigs ? system.getConfigs() : {};
+    if (configs.tagsSorter === "alpha") {
+      // Alphabetical sort: pick the lexicographically first tag per hub
+      var sortedTags = Object.keys(tagMap).sort(function (a, b) {
+        return a.localeCompare(b);
+      });
+      for (var si = 0; si < sortedTags.length; si++) {
+        var hp = tagMap[sortedTags[si]];
+        if (!hubPrimaryTag[hp]) {
+          hubPrimaryTag[hp] = sortedTags[si];
+        }
+      }
+    } else {
+      // Document order: iterate the document-level tags array which
+      // matches the order SwaggerUI renders tag sections by default.
+      var docTagsIm = specIm.get("tags");
+      if (docTagsIm) {
+        docTagsIm.forEach(function (tagObj) {
+          var name = tagObj && typeof tagObj.get === "function"
+            ? tagObj.get("name")
+            : (typeof tagObj === "string" ? tagObj : null);
+          if (name && tagMap[name] && !hubPrimaryTag[tagMap[name]]) {
+            hubPrimaryTag[tagMap[name]] = name;
+          }
+        });
+      }
+
+      // Fallback for tags not listed in the document-level tags array
+      Object.keys(tagMap).forEach(function (tag) {
+        var hp = tagMap[tag];
+        if (!hubPrimaryTag[hp]) {
+          hubPrimaryTag[hp] = tag;
         }
       });
     }
-
-    // Fallback for tags not listed in the document-level tags array
-    Object.keys(tagMap).forEach(function (tag) {
-      var hp = tagMap[tag];
-      if (!hubPrimaryTag[hp]) {
-        hubPrimaryTag[hp] = tag;
-      }
-    });
 
     _cachedTagHubMapVersion = specIm;
     _cachedTagHubMap = tagMap;
