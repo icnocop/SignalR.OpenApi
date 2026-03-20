@@ -441,7 +441,10 @@ var SignalROpenApiPlugin = function (system) {
   // operations in the spec. Each operation's tags are associated with
   // the hub path from its x-signalr extension. This handles custom
   // [Tags] attributes where the tag name differs from the hub name.
+  // Also tracks the primary (first-seen) tag for each hub path so the
+  // connection bar is rendered only once per hub.
   var _cachedTagHubMap = null;
+  var _cachedHubPrimaryTag = null;
   var _cachedTagHubMapVersion = null;
 
   var _getTagHubMap = function () {
@@ -451,6 +454,7 @@ var SignalROpenApiPlugin = function (system) {
     }
 
     var tagMap = {};
+    var hubPrimaryTag = {};
     var pathsIm = specIm.get("paths");
     if (pathsIm) {
       pathsIm.keySeq().forEach(function (path) {
@@ -479,6 +483,9 @@ var SignalROpenApiPlugin = function (system) {
               var tagStr = typeof tag === "string" ? tag : (tag.get ? tag.get("name") || tag : tag);
               if (typeof tagStr === "string" && !tagMap[tagStr]) {
                 tagMap[tagStr] = hubPath;
+                if (!hubPrimaryTag[hubPath]) {
+                  hubPrimaryTag[hubPath] = tagStr;
+                }
               }
             });
           }
@@ -488,6 +495,7 @@ var SignalROpenApiPlugin = function (system) {
 
     _cachedTagHubMapVersion = specIm;
     _cachedTagHubMap = tagMap;
+    _cachedHubPrimaryTag = hubPrimaryTag;
     return tagMap;
   };
 
@@ -497,6 +505,14 @@ var SignalROpenApiPlugin = function (system) {
   var _getHubPathForTag = function (tagName) {
     var tagMap = _getTagHubMap();
     return tagMap[tagName] || null;
+  };
+
+  // Check if a tag is the primary (first-seen) tag for its hub.
+  // Used to render the connection bar only once per hub when
+  // multiple tags map to the same hub path.
+  var _isPrimaryTagForHub = function (tagName, hubPath) {
+    _getTagHubMap();
+    return _cachedHubPrimaryTag && _cachedHubPrimaryTag[hubPath] === tagName;
   };
 
    // Parse request body from the SwaggerUI OAS3 state.
@@ -988,6 +1004,12 @@ var SignalROpenApiPlugin = function (system) {
 
           var hubPath = _getHubPathForTag(tagName);
           if (!hubPath) {
+            return result;
+          }
+
+          // Only render one connection bar per hub. When multiple tags
+          // map to the same hub, show the bar on the primary tag only.
+          if (!_isPrimaryTagForHub(tagName, hubPath)) {
             return result;
           }
 

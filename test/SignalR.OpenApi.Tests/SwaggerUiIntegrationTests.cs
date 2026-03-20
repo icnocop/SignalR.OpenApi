@@ -549,6 +549,24 @@ public class SwaggerUiIntegrationTests
     }
 
     /// <summary>
+    /// Verifies that the plugin JS deduplicates connection bars per hub
+    /// by only rendering on the primary tag via _isPrimaryTagForHub.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task PluginJs_ContainsPrimaryTagDeduplication()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi-plugin.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("_isPrimaryTagForHub"), "Plugin JS should contain _isPrimaryTagForHub for connection bar deduplication");
+        Assert.IsTrue(content.Contains("_cachedHubPrimaryTag"), "Plugin JS should cache the primary tag per hub path");
+    }
+
+    /// <summary>
     /// Verifies that the CSS contains connection bar styles.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
