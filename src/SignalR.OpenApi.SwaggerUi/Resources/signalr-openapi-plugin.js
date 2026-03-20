@@ -437,17 +437,66 @@ var SignalROpenApiPlugin = function (system) {
     });
   };
 
-  // Get the hub path associated with a given tag name.
-  // Tags correspond to hub names in the generated OpenAPI spec.
-  var _getHubPathForTag = function (tagName) {
-    var hubs = _getHubPaths();
-    for (var i = 0; i < hubs.length; i++) {
-      if (hubs[i].hubName === tagName) {
-        return hubs[i].hubPath;
-      }
+  // Build a mapping from tag names to hub paths by scanning all SignalR
+  // operations in the spec. Each operation's tags are associated with
+  // the hub path from its x-signalr extension. This handles custom
+  // [Tags] attributes where the tag name differs from the hub name.
+  var _cachedTagHubMap = null;
+  var _cachedTagHubMapVersion = null;
+
+  var _getTagHubMap = function () {
+    var specIm = system.specSelectors.specJson();
+    if (specIm === _cachedTagHubMapVersion) {
+      return _cachedTagHubMap;
     }
 
-    return null;
+    var tagMap = {};
+    var pathsIm = specIm.get("paths");
+    if (pathsIm) {
+      pathsIm.keySeq().forEach(function (path) {
+        if (!_isSignalRPath(path)) {
+          return;
+        }
+
+        var methods = ["post", "get"];
+        for (var mi = 0; mi < methods.length; mi++) {
+          var opIm = specIm.getIn(["paths", path, methods[mi]]);
+          if (!opIm) {
+            continue;
+          }
+
+          var ext = opIm.get("x-signalr");
+          if (!ext) {
+            continue;
+          }
+
+          var hubName = ext.get("hub");
+          var hubPath = ext.get("hubPath") || ("/" + hubName.toLowerCase());
+
+          var tagsIm = opIm.get("tags");
+          if (tagsIm) {
+            tagsIm.forEach(function (tag) {
+              var tagStr = typeof tag === "string" ? tag : (tag.get ? tag.get("name") || tag : tag);
+              if (typeof tagStr === "string" && !tagMap[tagStr]) {
+                tagMap[tagStr] = hubPath;
+              }
+            });
+          }
+        }
+      });
+    }
+
+    _cachedTagHubMapVersion = specIm;
+    _cachedTagHubMap = tagMap;
+    return tagMap;
+  };
+
+  // Get the hub path associated with a given tag name.
+  // Looks up the tag-to-hubPath mapping built from operation tags,
+  // which handles both default tags (hub name) and custom [Tags].
+  var _getHubPathForTag = function (tagName) {
+    var tagMap = _getTagHubMap();
+    return tagMap[tagName] || null;
   };
 
    // Parse request body from the SwaggerUI OAS3 state.
@@ -689,6 +738,7 @@ var SignalROpenApiPlugin = function (system) {
             onClick: clearLog,
           }, "Clear Log"),
           React.createElement("span", {
+            className: "signalr-status",
             style: { marginLeft: "10px", fontSize: "12px", color: "#888" },
           }, logs.length + " event(s) received")
         ),

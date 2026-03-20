@@ -532,6 +532,23 @@ public class SwaggerUiIntegrationTests
     }
 
     /// <summary>
+    /// Verifies that the plugin JS contains the _getTagHubMap function
+    /// which builds a tag-to-hub mapping for custom [Tags] support.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task PluginJs_ContainsTagHubMapFunction()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi-plugin.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("_getTagHubMap"), "Plugin JS should contain _getTagHubMap function for custom [Tags] support");
+    }
+
+    /// <summary>
     /// Verifies that the CSS contains connection bar styles.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>

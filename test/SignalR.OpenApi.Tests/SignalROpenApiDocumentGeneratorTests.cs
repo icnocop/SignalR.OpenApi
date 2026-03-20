@@ -1379,6 +1379,41 @@ public class SignalROpenApiDocumentGeneratorTests
         Assert.IsFalse(flattenedBody.Value, "flattenedBody should be false for mixed parameters.");
     }
 
+    /// <summary>
+    /// Verifies that when all hub methods have custom [Tags], the operation tags
+    /// differ from the hub name but the x-signalr extension still contains the
+    /// correct hub name and hubPath, enabling tag-to-hub mapping in the JS plugin.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_AllMethodsHaveCustomTags_ExtensionStillContainsHubInfo()
+    {
+        var (discoverer, generator) = CreateServices(o =>
+        {
+            o.HubRoutes[typeof(AllCustomTagsHub)] = "/hubs/custom-tags";
+        });
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        // Both methods should be tagged with "Greetings", not the hub name
+        var sayHello = doc.Paths["/hubs/AllCustomTags/SayHello"]
+            .Operations[OperationType.Post];
+        var sayHelloTags = sayHello.Tags.Select(t => t.Name).ToList();
+        CollectionAssert.Contains(sayHelloTags, "Greetings");
+        CollectionAssert.DoesNotContain(sayHelloTags, "AllCustomTags");
+
+        var sayGoodbye = doc.Paths["/hubs/AllCustomTags/SayGoodbye"]
+            .Operations[OperationType.Post];
+        var sayGoodbyeTags = sayGoodbye.Tags.Select(t => t.Name).ToList();
+        CollectionAssert.Contains(sayGoodbyeTags, "Greetings");
+        CollectionAssert.DoesNotContain(sayGoodbyeTags, "AllCustomTags");
+
+        // x-signalr extension should still reference the hub name and custom hubPath
+        var ext = (Microsoft.OpenApi.Any.OpenApiObject)sayHello.Extensions["x-signalr"];
+        Assert.AreEqual("AllCustomTags", ((Microsoft.OpenApi.Any.OpenApiString)ext["hub"]).Value);
+        Assert.AreEqual("/hubs/custom-tags", ((Microsoft.OpenApi.Any.OpenApiString)ext["hubPath"]).Value);
+    }
+
     private static (ReflectionHubDiscoverer Discoverer, SignalROpenApiDocumentGenerator Generator) CreateServices(
         Action<SignalROpenApiOptions>? configure = null)
     {
