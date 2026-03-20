@@ -567,6 +567,25 @@ public class SwaggerUiIntegrationTests
     }
 
     /// <summary>
+    /// Verifies that the plugin JS determines the primary tag per hub using
+    /// the document-level tags array so the connection bar renders above
+    /// the first visible tag section in SwaggerUI.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task PluginJs_DeterminesPrimaryTagFromDocumentTagsArray()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi-plugin.js");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.IsTrue(content.Contains("specIm.get(\"tags\")"), "Plugin JS should read the document-level tags array for primary tag ordering");
+        Assert.IsTrue(content.Contains("tagObj.get(\"name\")"), "Plugin JS should extract tag names from the document tags array");
+    }
+
+    /// <summary>
     /// Verifies that the CSS contains connection bar styles.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>

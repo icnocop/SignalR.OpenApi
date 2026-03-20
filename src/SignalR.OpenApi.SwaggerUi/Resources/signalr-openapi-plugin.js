@@ -454,7 +454,6 @@ var SignalROpenApiPlugin = function (system) {
     }
 
     var tagMap = {};
-    var hubPrimaryTag = {};
     var pathsIm = specIm.get("paths");
     if (pathsIm) {
       pathsIm.keySeq().forEach(function (path) {
@@ -483,15 +482,37 @@ var SignalROpenApiPlugin = function (system) {
               var tagStr = typeof tag === "string" ? tag : (tag.get ? tag.get("name") || tag : tag);
               if (typeof tagStr === "string" && !tagMap[tagStr]) {
                 tagMap[tagStr] = hubPath;
-                if (!hubPrimaryTag[hubPath]) {
-                  hubPrimaryTag[hubPath] = tagStr;
-                }
               }
             });
           }
         }
       });
     }
+
+    // Determine the primary tag per hub using the document-level tags
+    // array, which defines the order SwaggerUI renders tag sections.
+    // This ensures the connection bar appears above the first visible
+    // tag section for each hub, not at a path-scan-order position.
+    var hubPrimaryTag = {};
+    var docTagsIm = specIm.get("tags");
+    if (docTagsIm) {
+      docTagsIm.forEach(function (tagObj) {
+        var name = tagObj && typeof tagObj.get === "function"
+          ? tagObj.get("name")
+          : (typeof tagObj === "string" ? tagObj : null);
+        if (name && tagMap[name] && !hubPrimaryTag[tagMap[name]]) {
+          hubPrimaryTag[tagMap[name]] = name;
+        }
+      });
+    }
+
+    // Fallback for tags not listed in the document-level tags array
+    Object.keys(tagMap).forEach(function (tag) {
+      var hp = tagMap[tag];
+      if (!hubPrimaryTag[hp]) {
+        hubPrimaryTag[hp] = tag;
+      }
+    });
 
     _cachedTagHubMapVersion = specIm;
     _cachedTagHubMap = tagMap;
