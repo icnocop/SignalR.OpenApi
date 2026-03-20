@@ -600,33 +600,29 @@ var SignalROpenApiPlugin = function (system) {
 
     var showConnecting = isConnecting || isManualConnecting;
 
-    var statusClass = isConnected
-      ? "signalr-status--connected"
-      : showConnecting
-        ? "signalr-status--connecting"
-        : "signalr-status--disconnected";
+    var buttonClass = isConnected
+      ? "btn signalr-disconnect-btn"
+      : "btn signalr-connect-btn";
 
-    var statusText = isConnected
-      ? "Connected"
-      : showConnecting
-        ? "Connecting\u2026"
-        : "Disconnected";
+    var buttonText = isConnected
+      ? "Disconnect"
+      : "Connect";
+
+    var handleClick = isConnected
+      ? handleDisconnect
+      : !showConnecting
+        ? handleConnect
+        : undefined;
 
     return React.createElement("div", {
       className: "signalr-hub-connection-bar",
       onClick: function (e) { e.stopPropagation(); },
     },
-      React.createElement("span", {
-        className: "signalr-status " + statusClass,
-      }, statusText),
-      !isConnected && !showConnecting && React.createElement("button", {
-        className: "btn signalr-connect-btn",
-        onClick: handleConnect,
-      }, "Connect"),
-      isConnected && React.createElement("button", {
-        className: "btn signalr-disconnect-btn",
-        onClick: handleDisconnect,
-      }, "Disconnect")
+      React.createElement("button", {
+        className: buttonClass,
+        onClick: handleClick,
+        disabled: showConnecting,
+      }, buttonText)
     );
   }
 
@@ -682,14 +678,11 @@ var SignalROpenApiPlugin = function (system) {
     return React.createElement("div", { className: "opblock-body" },
       React.createElement("div", { className: "signalr-event-panel", style: { padding: "10px 20px" } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: "10px" } },
-          React.createElement("span", {
-            className: "signalr-status " + (isConnected ? "signalr-status--connected" : "signalr-status--disconnected"),
-          }, isConnected ? "Connected" : "Disconnected"),
-          !isConnected && React.createElement("button", {
-            className: "btn",
-            style: { marginLeft: "10px", fontSize: "12px", padding: "4px 10px" },
-            onClick: connectAndListen,
-          }, "Connect & Listen"),
+          React.createElement("button", {
+            className: "btn " + (isConnected ? "signalr-disconnect-btn" : "signalr-connect-btn"),
+            onClick: isConnected ? undefined : connectAndListen,
+            disabled: isConnected,
+          }, isConnected ? "Connected" : "Connect & Listen"),
           logs.length > 0 && React.createElement("button", {
             className: "btn",
             style: { marginLeft: "10px", fontSize: "12px", padding: "4px 10px" },

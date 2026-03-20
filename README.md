@@ -20,9 +20,8 @@ OpenAPI 3.1 specification generation and SwaggerUI support for ASP.NET Core Sign
 - Security scheme detection from `[Authorize]` / `[AllowAnonymous]`
 - JWT Bearer token support in SwaggerUI (header or query string)
 - Custom HTTP headers (static or user-enterable via SwaggerUI Authorize dialog)
-- Connection status indicator with automatic reconnection handling
+- Per-hub Connect / Disconnect toggle button with automatic reconnection handling
 - Automatic credential change detection with transparent reconnection
-- Per-hub Connect / Disconnect buttons in SwaggerUI
 - Form-urlencoded input mode for primitive and flat object parameters
 - Multiple named request/response examples via custom attributes
 - Enum schema generation (integer or string based on `JsonStringEnumConverter`)
@@ -143,8 +142,7 @@ When the stream completes, the state changes to `"completed"`. If an error occur
 
 Client events (from `Hub<TClient>` interface methods) appear as **EVENT** operations. When you expand one, an event log panel shows:
 
-- **Connection status**: Connected / Disconnected indicator
-- **Connect & Listen**: Button to establish hub connection and start receiving events
+- **Connect & Listen**: Toggle button to establish hub connection and start receiving events (shows "Connected" when active)
 - **Event log**: Real-time list of received events with timestamps and JSON payloads
 - **Clear Log**: Button to reset the event history
 
@@ -152,13 +150,12 @@ Events are automatically subscribed when connecting to a hub via any invoke or s
 
 ### Connection Management
 
-Each hub tag section in SwaggerUI displays a connection control bar showing the current connection status with **Connect** and **Disconnect** buttons.
+Each hub tag section in SwaggerUI displays a connection control bar with a single toggle button:
 
-| Status | Description |
-|--------|-------------|
-| **Connected** | Hub connection is active; a Disconnect button is available |
-| **Disconnected** | No active connection; a Connect button is available |
-| **Connecting…** | Connection is being established or reconnecting |
+| Button State | Description |
+|--------------|-------------|
+| **Connect** | No active connection; click to connect |
+| **Disconnect** | Hub connection is active; click to disconnect |
 
 **Auto-connect on Execute**: Clicking Execute on any hub method automatically connects if not already connected — you do not need to click Connect first.
 

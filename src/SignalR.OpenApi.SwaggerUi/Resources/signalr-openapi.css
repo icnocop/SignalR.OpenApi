@@ -17,34 +17,41 @@
   background: #61affe;
 }
 
-/* SignalR connection status indicator */
-.signalr-status {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 12px;
-  font-weight: 700;
-  margin-left: 8px;
+/* SignalR connect/disconnect buttons styled like SwaggerUI Execute */
+.signalr-connect-btn,
+.signalr-disconnect-btn {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  padding: 5px 23px !important;
+  border: 2px solid !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-family: sans-serif !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
 }
 
-.signalr-status--connected {
-  background: #49cc90;
-  color: #fff;
+/* Connect: matches the green Execute / Invoke style */
+.signalr-connect-btn {
+  background: #fff !important;
+  color: #49cc90 !important;
+  border-color: #49cc90 !important;
 }
 
-.signalr-status--disconnected {
-  background: #f93e3e;
-  color: #fff;
+.signalr-connect-btn:hover {
+  background: #49cc90 !important;
+  color: #fff !important;
 }
 
-.signalr-status--connecting {
-  background: #fca130;
-  color: #fff;
+/* Disconnect: red variant */
+.signalr-disconnect-btn {
+  background: #fff !important;
+  color: #f93e3e !important;
+  border-color: #f93e3e !important;
 }
 
-.signalr-status--reconnecting {
-  background: #fca130;
-  color: #fff;
+.signalr-disconnect-btn:hover {
+  background: #f93e3e !important;
+  color: #fff !important;
 }
 
 /* Stop Stream button styling */
@@ -93,33 +100,9 @@
 .signalr-hub-connection-bar {
   display: flex;
   align-items: center;
-  padding: 6px 20px;
+  padding: 6px 5px;
   background: #fafafa;
   border-bottom: 1px solid #e8e8e8;
   font-size: 13px;
   gap: 8px;
-}
-
-.signalr-connect-btn {
-  font-size: 12px !important;
-  padding: 3px 10px !important;
-  background: #49cc90 !important;
-  color: #fff !important;
-  border-color: #49cc90 !important;
-}
-
-.signalr-connect-btn:hover {
-  background: #3bb878 !important;
-}
-
-.signalr-disconnect-btn {
-  font-size: 12px !important;
-  padding: 3px 10px !important;
-  background: #f93e3e !important;
-  color: #fff !important;
-  border-color: #f93e3e !important;
-}
-
-.signalr-disconnect-btn:hover {
-  background: #e02020 !important;
 }

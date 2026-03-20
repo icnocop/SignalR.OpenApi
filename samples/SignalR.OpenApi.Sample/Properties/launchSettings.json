@@ -6,8 +6,7 @@
       "launchUrl": "signalr-swagger/",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "applicationUrl": "https://localhost:57862;http://localhost:57863"
+      }
     }
   }
 }

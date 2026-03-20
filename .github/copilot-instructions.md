@@ -87,3 +87,6 @@ Leverage ASP.NET Core built-in support:
 - **SwaggerUI component wrapping** — Props in `wrapComponents` may be **plain JS objects/arrays OR ImmutableJS** structures depending on the component and SwaggerUI version. Always use defensive access: `val.get ? val.get(0) : val[0]` for lists, `val.size != null ? val.size : val.length` for counts. The `parameters` component receives `pathMethod` (array/List) and `parameters` (ImmutableList). The "No parameters" section is hidden for SignalR operations since hub methods use request body, not URL parameters.
 - **SwaggerUI form-urlencoded** values are wrapped as `{fieldName: {value: "val", errors: []}}` — the JS plugin unwraps these and coerces types (string→number/boolean).
 - **Playwright tests** require browser binaries installed separately; they are excluded from CI via `[TestCategory("Playwright")]`.
+
+### Documentation Maintenance
+- **README.md** is the primary user-facing documentation. When making changes to features, configuration options, UI behavior, CSS styling, or public API surface, always review and update `README.md` to keep it in sync with the implementation.

@@ -222,7 +222,7 @@ public class SwaggerUiIntegrationTests
 
         Assert.AreEqual(System.Net.HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadAsStringAsync();
-        Assert.IsTrue(content.Contains("signalr-status"));
+        Assert.IsTrue(content.Contains("signalr-connect-btn"));
     }
 
     /// <summary>
