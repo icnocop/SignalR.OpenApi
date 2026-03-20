@@ -449,10 +449,25 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
             foreach (var clientEvent in hub.ClientEvents)
             {
-                var eventTag = $"{hub.Name} Events";
-                if (tagSet.Add(eventTag))
+                if (clientEvent.Tags.Count > 0)
                 {
-                    tagNames.Add(eventTag);
+                    // Client event has custom [Tags] — register those tags.
+                    foreach (var tag in clientEvent.Tags)
+                    {
+                        if (tagSet.Add(tag))
+                        {
+                            tagNames.Add(tag);
+                        }
+                    }
+                }
+                else
+                {
+                    // No custom tags — use the default "{HubName} Events" tag.
+                    var eventTag = $"{hub.Name} Events";
+                    if (tagSet.Add(eventTag))
+                    {
+                        tagNames.Add(eventTag);
+                    }
                 }
             }
         }

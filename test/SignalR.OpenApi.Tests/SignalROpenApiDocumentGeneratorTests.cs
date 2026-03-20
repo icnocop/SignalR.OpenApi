@@ -1261,6 +1261,24 @@ public class SignalROpenApiDocumentGeneratorTests
     }
 
     /// <summary>
+    /// Verifies that the default "{HubName} Events" tag is not added to document tags
+    /// when all client events have custom [Tags] attributes.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_AllClientEventsHaveCustomTags_OmitsDefaultEventsTag()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        Assert.IsNotNull(doc.Tags);
+        var tagNames = doc.Tags.Select(t => t.Name).ToList();
+
+        CollectionAssert.DoesNotContain(tagNames, "AllTaggedEvents Events");
+        CollectionAssert.Contains(tagNames, "Notifications");
+    }
+
+    /// <summary>
     /// Verifies that document tags are deduplicated when multiple methods share the same tag.
     /// </summary>
     [TestMethod]
