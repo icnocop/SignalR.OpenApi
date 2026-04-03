@@ -79,4 +79,11 @@ public interface IChatHub
     /// <returns>A stream of countdown numbers.</returns>
     /// <example>10.</example>
     IAsyncEnumerable<int> Countdown(int from, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Gets the current chat room statistics.
+    /// </summary>
+    /// <param name="roomName">The name of the chat room.</param>
+    /// <returns>The chat statistics for the specified room.</returns>
+    Task<ChatStats> GetChatStatsAsync(string roomName);
 }

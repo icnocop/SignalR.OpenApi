@@ -59,6 +59,7 @@ public class SwaggerUiPlaywrightTests : PageTest
                         endpoints.MapHub<BasicHub>("/hubs/basic");
                         endpoints.MapHub<StreamingHub>("/hubs/streaming");
                         endpoints.MapHub<TypedChatHub>("/hubs/typedchat");
+                        endpoints.MapHub<ExampleHub>("/hubs/example");
                         endpoints.MapSignalROpenApi();
                     });
                 });
@@ -468,6 +469,54 @@ public class SwaggerUiPlaywrightTests : PageTest
         Assert.IsTrue(
             bodyText!.Contains("\"items\""),
             $"Completed stream should contain items. Body: {bodyText}");
+    }
+
+    /// <summary>
+    /// Verifies that response examples from <c>[SignalROpenApiResponseExamples]</c>
+    /// appear in SwaggerUI's response section with example names in a dropdown.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task SwaggerUi_ResponseExamplesDisplayed()
+    {
+        await Page.GotoAsync($"{baseUrl}/signalr-swagger/index.html");
+
+        var operationBlock = Page.Locator(".opblock");
+        await operationBlock.First.WaitForAsync(new() { Timeout = 15000 });
+
+        // Find and expand the CreateOrder operation (has response examples)
+        var createOrderOp = Page.Locator(".opblock", new() { HasTextString = "CreateOrder" });
+        Assert.IsTrue(await createOrderOp.CountAsync() > 0, "CreateOrder operation should exist.");
+        await createOrderOp.First.ClickAsync();
+
+        // Wait for the response section to render
+        await Page.WaitForTimeoutAsync(1000);
+
+        // SwaggerUI renders response examples in the responses section.
+        // When multiple named examples exist, a <select> dropdown appears.
+        var responsesSection = createOrderOp.Locator(".responses-wrapper");
+        Assert.IsTrue(await responsesSection.CountAsync() > 0, "Responses section should be visible.");
+
+        // Look for example dropdown or example content in the 200 response
+        var exampleSelect = responsesSection.Locator("select");
+        var exampleSelectCount = await exampleSelect.CountAsync();
+
+        if (exampleSelectCount > 0)
+        {
+            // SwaggerUI shows a dropdown with named examples
+            var selectHtml = await exampleSelect.First.InnerHTMLAsync();
+            Assert.IsTrue(
+                selectHtml.Contains("Created") || selectHtml.Contains("Pending"),
+                $"Example dropdown should contain 'Created' or 'Pending'. HTML: {selectHtml}");
+        }
+        else
+        {
+            // Fallback: check that example content is rendered somewhere in the response
+            var responseContent = await responsesSection.InnerTextAsync();
+            Assert.IsTrue(
+                responseContent.Contains("ORD-001") || responseContent.Contains("orderId"),
+                $"Response section should contain example values. Content: {responseContent}");
+        }
     }
 
     private static int GetAvailablePort()

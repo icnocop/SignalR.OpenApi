@@ -76,4 +76,16 @@ public class ChatHub : Hub<IChatClient>, IChatHub
             await Task.Delay(1000, cancellationToken);
         }
     }
+
+    /// <inheritdoc />
+    [SignalROpenApiResponseExamples(typeof(ChatStatsExamplesProvider))]
+    public Task<ChatStats> GetChatStatsAsync(string roomName)
+    {
+        return Task.FromResult(new ChatStats
+        {
+            ActiveUsers = 15,
+            TotalMessages = 342,
+            RoomName = roomName,
+        });
+    }
 }

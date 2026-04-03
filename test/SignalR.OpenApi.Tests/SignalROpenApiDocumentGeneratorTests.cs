@@ -493,6 +493,90 @@ public class SignalROpenApiDocumentGeneratorTests
     }
 
     /// <summary>
+    /// Verifies that response examples from a complex object provider appear
+    /// in the serialized JSON at the correct path under responses/200/content.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_ResponseExamplesAppearInSerializedJson()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var json = SerializeDocumentToJson(doc);
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(json);
+        var root = jsonDoc.RootElement;
+
+        // Navigate to CreateOrder response examples
+        var mediaType = root
+            .GetProperty("paths")
+            .GetProperty("/hubs/Example/CreateOrder")
+            .GetProperty("post")
+            .GetProperty("responses")
+            .GetProperty("200")
+            .GetProperty("content")
+            .GetProperty("application/json");
+
+        Assert.IsTrue(
+            mediaType.TryGetProperty("examples", out var examples),
+            "Serialized JSON should contain 'examples' in response media type.");
+
+        // Verify "Created" example
+        Assert.IsTrue(examples.TryGetProperty("Created", out var created), "Should contain 'Created' example.");
+        Assert.AreEqual("Successfully created order", created.GetProperty("summary").GetString());
+        var createdValue = created.GetProperty("value");
+        Assert.AreEqual("ORD-001", createdValue.GetProperty("orderId").GetString());
+        Assert.AreEqual("Created", createdValue.GetProperty("status").GetString());
+
+        // Verify "Pending" example
+        Assert.IsTrue(examples.TryGetProperty("Pending", out var pending), "Should contain 'Pending' example.");
+        Assert.AreEqual("Order pending approval", pending.GetProperty("summary").GetString());
+        var pendingValue = pending.GetProperty("value");
+        Assert.AreEqual("ORD-002", pendingValue.GetProperty("orderId").GetString());
+        Assert.AreEqual("PendingApproval", pendingValue.GetProperty("status").GetString());
+    }
+
+    /// <summary>
+    /// Verifies that response examples for a simple return type (string)
+    /// appear in the serialized JSON at the correct path.
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_SimpleTypeResponseExamplesAppearInSerializedJson()
+    {
+        var (discoverer, generator) = CreateServices();
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var json = SerializeDocumentToJson(doc);
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(json);
+        var root = jsonDoc.RootElement;
+
+        // Navigate to Greet response examples
+        var mediaType = root
+            .GetProperty("paths")
+            .GetProperty("/hubs/Example/Greet")
+            .GetProperty("post")
+            .GetProperty("responses")
+            .GetProperty("200")
+            .GetProperty("content")
+            .GetProperty("application/json");
+
+        Assert.IsTrue(
+            mediaType.TryGetProperty("examples", out var examples),
+            "Serialized JSON should contain 'examples' in Greet response media type.");
+
+        // Verify "Casual" example
+        Assert.IsTrue(examples.TryGetProperty("Casual", out var casual), "Should contain 'Casual' example.");
+        Assert.AreEqual("Casual greeting", casual.GetProperty("summary").GetString());
+        Assert.AreEqual("Hello, World!", casual.GetProperty("value").GetString());
+
+        // Verify "Formal" example
+        Assert.IsTrue(examples.TryGetProperty("Formal", out var formal), "Should contain 'Formal' example.");
+        Assert.AreEqual("Formal greeting", formal.GetProperty("summary").GetString());
+        Assert.AreEqual("Hello, Dr. Smith!", formal.GetProperty("value").GetString());
+    }
+
+    /// <summary>
     /// Verifies that request example attributes are read from hub methods.
     /// </summary>
     [TestMethod]
@@ -1049,6 +1133,49 @@ public class SignalROpenApiDocumentGeneratorTests
     }
 
     /// <summary>
+    /// Verifies that examples providers with scoped constructor dependencies
+    /// are resolved correctly via DI (not silently dropped).
+    /// </summary>
+    [TestMethod]
+    public void GenerateDocument_ExamplesProviderWithScopedDependencyInjection()
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ITestValueProvider>(_ => new TestValueProvider("ScopedValue"));
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var options = new SignalROpenApiOptions
+        {
+            Assemblies = [typeof(DiExampleHub).Assembly],
+        };
+
+        var opts = Options.Create(options);
+        var discoverer = new ReflectionHubDiscoverer(opts);
+        var generator = new SignalROpenApiDocumentGenerator(opts, serviceProvider);
+
+        var hubs = discoverer.DiscoverHubs();
+        var doc = generator.GenerateDocument(hubs);
+
+        var submitRequest = doc.Paths["/hubs/DiExample/SubmitRequest"]
+            .Operations[Microsoft.OpenApi.Models.OperationType.Post];
+
+        Assert.IsNotNull(submitRequest.RequestBody, "SubmitRequest should have a request body.");
+
+        var jsonContent = submitRequest.RequestBody.Content["application/json"];
+        Assert.IsNotNull(jsonContent.Examples, "Request body should have examples.");
+        Assert.IsTrue(jsonContent.Examples.ContainsKey("DiExample"), "Should contain 'DiExample' example.");
+
+        var diExample = jsonContent.Examples["DiExample"];
+        Assert.AreEqual("Example from DI provider", diExample.Summary);
+
+        Assert.IsNotNull(diExample.Value, "Example value should not be null.");
+        var exampleObj = diExample.Value as Microsoft.OpenApi.Any.OpenApiObject;
+        Assert.IsNotNull(exampleObj, "Example value should be an OpenApiObject.");
+        var nameValue = exampleObj["name"] as Microsoft.OpenApi.Any.OpenApiString;
+        Assert.IsNotNull(nameValue, "Name property should exist.");
+        Assert.AreEqual("ScopedValue", nameValue.Value, "Name should be the scoped injected value.");
+    }
+
+    /// <summary>
     /// Verifies that enum schemas default to integer type with numeric values
     /// when no <see cref="JsonStringEnumConverter"/> is configured.
     /// </summary>
@@ -1427,6 +1554,19 @@ public class SignalROpenApiDocumentGeneratorTests
         var opts = Options.Create(options);
         var serviceProvider = new EmptyServiceProvider();
         return (new ReflectionHubDiscoverer(opts), new SignalROpenApiDocumentGenerator(opts, serviceProvider));
+    }
+
+    private static string SerializeDocumentToJson(OpenApiDocument doc)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new StreamWriter(stream);
+        var jsonWriter = new Microsoft.OpenApi.Writers.OpenApiJsonWriter(writer);
+        doc.SerializeAsV3(jsonWriter);
+        writer.Flush();
+
+        stream.Position = 0;
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     private sealed class EmptyServiceProvider : IServiceProvider

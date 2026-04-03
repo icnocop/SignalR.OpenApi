@@ -1438,134 +1438,173 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
         // Create the provider using ActivatorUtilities, which resolves constructor
         // dependencies from DI while allowing types that are not registered themselves.
-        object provider;
+        // A scope is created so that scoped dependencies can be resolved.
+        IServiceScope? scope = null;
         try
         {
-            provider = ActivatorUtilities.CreateInstance(this.serviceProvider, providerType);
+            scope = this.serviceProvider.CreateScope();
         }
         catch (Exception)
         {
+            // Service provider may not support scoping (e.g. in tests).
+        }
+
+        object provider;
+        try
+        {
+            var sp = scope?.ServiceProvider ?? this.serviceProvider;
+            provider = ActivatorUtilities.CreateInstance(sp, providerType);
+        }
+        catch (Exception)
+        {
+            scope?.Dispose();
             return result;
         }
 
-        // Find the ISignalROpenApiExamplesProvider<T> interface on the provider type
-        var providerInterface = providerType.GetInterfaces()
-            .FirstOrDefault(i => i.IsGenericType
-                && i.GetGenericTypeDefinition() == typeof(ISignalROpenApiExamplesProvider<>));
-
-        if (providerInterface is null)
+        try
         {
-            return result;
-        }
+            // Find the ISignalROpenApiExamplesProvider<T> interface on the provider type
+            var providerInterface = providerType.GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType
+                    && i.GetGenericTypeDefinition() == typeof(ISignalROpenApiExamplesProvider<>));
 
-        // Invoke GetExamples() via reflection
-        var getExamplesMethod = providerInterface.GetMethod(nameof(ISignalROpenApiExamplesProvider<object>.GetExamples));
-        if (getExamplesMethod is null)
-        {
-            return result;
-        }
-
-        var examples = getExamplesMethod.Invoke(provider, null);
-        if (examples is null)
-        {
-            return result;
-        }
-
-        // Iterate through the IEnumerable<SignalROpenApiExample<T>>
-        foreach (var exampleObj in (System.Collections.IEnumerable)examples)
-        {
-            var exampleType = exampleObj.GetType();
-            var nameProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Name));
-            var summaryProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Summary));
-            var descriptionProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Description));
-            var valueProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Value));
-
-            var name = nameProperty?.GetValue(exampleObj) as string ?? "example";
-            var summary = summaryProperty?.GetValue(exampleObj) as string;
-            var description = descriptionProperty?.GetValue(exampleObj) as string;
-            var value = valueProperty?.GetValue(exampleObj);
-
-            var openApiExample = new OpenApiExample
+            if (providerInterface is null)
             {
-                Summary = summary,
-                Description = description,
-            };
-
-            if (value is not null)
-            {
-                openApiExample.Value = ConvertToOpenApiAny(value);
+                return result;
             }
 
-            result[name] = openApiExample;
-        }
+            // Invoke GetExamples() via reflection
+            var getExamplesMethod = providerInterface.GetMethod(nameof(ISignalROpenApiExamplesProvider<object>.GetExamples));
+            if (getExamplesMethod is null)
+            {
+                return result;
+            }
 
-        return result;
+            var examples = getExamplesMethod.Invoke(provider, null);
+            if (examples is null)
+            {
+                return result;
+            }
+
+            // Iterate through the IEnumerable<SignalROpenApiExample<T>>
+            foreach (var exampleObj in (System.Collections.IEnumerable)examples)
+            {
+                var exampleType = exampleObj.GetType();
+                var nameProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Name));
+                var summaryProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Summary));
+                var descriptionProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Description));
+                var valueProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Value));
+
+                var name = nameProperty?.GetValue(exampleObj) as string ?? "example";
+                var summary = summaryProperty?.GetValue(exampleObj) as string;
+                var description = descriptionProperty?.GetValue(exampleObj) as string;
+                var value = valueProperty?.GetValue(exampleObj);
+
+                var openApiExample = new OpenApiExample
+                {
+                    Summary = summary,
+                    Description = description,
+                };
+
+                if (value is not null)
+                {
+                    openApiExample.Value = ConvertToOpenApiAny(value);
+                }
+
+                result[name] = openApiExample;
+            }
+
+            return result;
+        }
+        finally
+        {
+            scope?.Dispose();
+        }
     }
 
     private Dictionary<string, OpenApiExample> ResolveExamplesForDerivedType(Type providerType, Type derivedType)
     {
         var result = new Dictionary<string, OpenApiExample>();
 
-        object provider;
+        IServiceScope? scope = null;
         try
         {
-            provider = ActivatorUtilities.CreateInstance(this.serviceProvider, providerType);
+            scope = this.serviceProvider.CreateScope();
         }
         catch (Exception)
         {
+            // Service provider may not support scoping (e.g. in tests).
+        }
+
+        object provider;
+        try
+        {
+            var sp = scope?.ServiceProvider ?? this.serviceProvider;
+            provider = ActivatorUtilities.CreateInstance(sp, providerType);
+        }
+        catch (Exception)
+        {
+            scope?.Dispose();
             return result;
         }
 
-        var providerInterface = providerType.GetInterfaces()
-            .FirstOrDefault(i => i.IsGenericType
-                && i.GetGenericTypeDefinition() == typeof(ISignalROpenApiExamplesProvider<>));
-
-        if (providerInterface is null)
+        try
         {
-            return result;
-        }
+            var providerInterface = providerType.GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType
+                    && i.GetGenericTypeDefinition() == typeof(ISignalROpenApiExamplesProvider<>));
 
-        var getExamplesMethod = providerInterface.GetMethod(nameof(ISignalROpenApiExamplesProvider<object>.GetExamples));
-        if (getExamplesMethod is null)
-        {
-            return result;
-        }
-
-        var examples = getExamplesMethod.Invoke(provider, null);
-        if (examples is null)
-        {
-            return result;
-        }
-
-        foreach (var exampleObj in (System.Collections.IEnumerable)examples)
-        {
-            var exampleType = exampleObj.GetType();
-            var valueProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Value));
-            var value = valueProperty?.GetValue(exampleObj);
-
-            // Only include examples whose value matches the derived type.
-            if (value is null || !derivedType.IsInstanceOfType(value))
+            if (providerInterface is null)
             {
-                continue;
+                return result;
             }
 
-            var nameProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Name));
-            var summaryProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Summary));
-            var descriptionProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Description));
-
-            var name = nameProperty?.GetValue(exampleObj) as string ?? "example";
-            var summary = summaryProperty?.GetValue(exampleObj) as string;
-            var description = descriptionProperty?.GetValue(exampleObj) as string;
-
-            result[name] = new OpenApiExample
+            var getExamplesMethod = providerInterface.GetMethod(nameof(ISignalROpenApiExamplesProvider<object>.GetExamples));
+            if (getExamplesMethod is null)
             {
-                Summary = summary,
-                Description = description,
-                Value = ConvertToOpenApiAny(value),
-            };
-        }
+                return result;
+            }
 
-        return result;
+            var examples = getExamplesMethod.Invoke(provider, null);
+            if (examples is null)
+            {
+                return result;
+            }
+
+            foreach (var exampleObj in (System.Collections.IEnumerable)examples)
+            {
+                var exampleType = exampleObj.GetType();
+                var valueProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Value));
+                var value = valueProperty?.GetValue(exampleObj);
+
+                // Only include examples whose value matches the derived type.
+                if (value is null || !derivedType.IsInstanceOfType(value))
+                {
+                    continue;
+                }
+
+                var nameProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Name));
+                var summaryProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Summary));
+                var descriptionProperty = exampleType.GetProperty(nameof(SignalROpenApiExample<object>.Description));
+
+                var name = nameProperty?.GetValue(exampleObj) as string ?? "example";
+                var summary = summaryProperty?.GetValue(exampleObj) as string;
+                var description = descriptionProperty?.GetValue(exampleObj) as string;
+
+                result[name] = new OpenApiExample
+                {
+                    Summary = summary,
+                    Description = description,
+                    Value = ConvertToOpenApiAny(value),
+                };
+            }
+
+            return result;
+        }
+        finally
+        {
+            scope?.Dispose();
+        }
     }
 
     private object? ResolveFirstExampleValue(IReadOnlyList<Type> providerTypes)
@@ -1598,43 +1637,62 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
     private object? GetFirstExampleValueFromProvider(Type providerType, Type? filterType = null)
     {
-        object provider;
+        IServiceScope? scope = null;
         try
         {
-            provider = ActivatorUtilities.CreateInstance(this.serviceProvider, providerType);
+            scope = this.serviceProvider.CreateScope();
         }
         catch (Exception)
         {
+            // Service provider may not support scoping (e.g. in tests).
+        }
+
+        object provider;
+        try
+        {
+            var sp = scope?.ServiceProvider ?? this.serviceProvider;
+            provider = ActivatorUtilities.CreateInstance(sp, providerType);
+        }
+        catch (Exception)
+        {
+            scope?.Dispose();
             return null;
         }
 
-        var providerInterface = providerType.GetInterfaces()
-            .FirstOrDefault(i => i.IsGenericType
-                && i.GetGenericTypeDefinition() == typeof(ISignalROpenApiExamplesProvider<>));
-
-        var getExamplesMethod = providerInterface?.GetMethod(nameof(ISignalROpenApiExamplesProvider<object>.GetExamples));
-        var examples = getExamplesMethod?.Invoke(provider, null);
-        if (examples is null)
+        try
         {
+            var providerInterface = providerType.GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType
+                    && i.GetGenericTypeDefinition() == typeof(ISignalROpenApiExamplesProvider<>));
+
+            var getExamplesMethod = providerInterface?.GetMethod(nameof(ISignalROpenApiExamplesProvider<object>.GetExamples));
+            var examples = getExamplesMethod?.Invoke(provider, null);
+            if (examples is null)
+            {
+                return null;
+            }
+
+            foreach (var exampleObj in (System.Collections.IEnumerable)examples)
+            {
+                var valueProperty = exampleObj.GetType().GetProperty(nameof(SignalROpenApiExample<object>.Value));
+                var value = valueProperty?.GetValue(exampleObj);
+
+                if (value is null)
+                {
+                    continue;
+                }
+
+                if (filterType is null || filterType.IsInstanceOfType(value))
+                {
+                    return value;
+                }
+            }
+
             return null;
         }
-
-        foreach (var exampleObj in (System.Collections.IEnumerable)examples)
+        finally
         {
-            var valueProperty = exampleObj.GetType().GetProperty(nameof(SignalROpenApiExample<object>.Value));
-            var value = valueProperty?.GetValue(exampleObj);
-
-            if (value is null)
-            {
-                continue;
-            }
-
-            if (filterType is null || filterType.IsInstanceOfType(value))
-            {
-                return value;
-            }
+            scope?.Dispose();
         }
-
-        return null;
     }
 }
