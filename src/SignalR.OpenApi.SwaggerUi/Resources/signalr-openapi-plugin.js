@@ -308,78 +308,85 @@ var SignalROpenApiPlugin = function (system) {
       return Promise.resolve(_hubs[hubPath]);
     }
 
-    var token = _getAccessToken();
-    var configs = system.getConfigs ? system.getConfigs() : {};
-    var options = {};
-    if (token) {
-      options.accessTokenFactory = function () { return token; };
-    }
+    // Wrap in try/catch so synchronous errors (e.g. URL resolution
+    // failures in Electron/Node-like environments) are surfaced as
+    // rejected promises instead of uncaught exceptions.
+    try {
+      var token = _getAccessToken();
+      var configs = system.getConfigs ? system.getConfigs() : {};
+      var options = {};
+      if (token) {
+        options.accessTokenFactory = function () { return token; };
+      }
 
-    // Apply custom headers from configuration (e.g. "X-Custom-Header")
-    var configuredHeaders = configs.signalRHeaders;
-    if (configuredHeaders && typeof configuredHeaders === "object") {
-      options.headers = {};
-      Object.keys(configuredHeaders).forEach(function (key) {
-        options.headers[key] = configuredHeaders[key];
-      });
-    }
-
-    // Merge apiKey headers entered via the SwaggerUI Authorize dialog
-    var apiKeyHeaders = _getApiKeyHeaders();
-    if (apiKeyHeaders) {
-      if (!options.headers) {
+      // Apply custom headers from configuration (e.g. "X-Custom-Header")
+      var configuredHeaders = configs.signalRHeaders;
+      if (configuredHeaders && typeof configuredHeaders === "object") {
         options.headers = {};
+        Object.keys(configuredHeaders).forEach(function (key) {
+          options.headers[key] = configuredHeaders[key];
+        });
       }
 
-      Object.keys(apiKeyHeaders).forEach(function (key) {
-        options.headers[key] = apiKeyHeaders[key];
+      // Merge apiKey headers entered via the SwaggerUI Authorize dialog
+      var apiKeyHeaders = _getApiKeyHeaders();
+      if (apiKeyHeaders) {
+        if (!options.headers) {
+          options.headers = {};
+        }
+
+        Object.keys(apiKeyHeaders).forEach(function (key) {
+          options.headers[key] = apiKeyHeaders[key];
+        });
+      }
+
+      // Browsers cannot send custom HTTP headers on WebSocket or
+      // Server-Sent Events connections. When custom headers are
+      // configured, fall back to Long Polling which includes headers
+      // with every HTTP request so the server can read them on each
+      // hub invocation.
+      if (options.headers && Object.keys(options.headers).length > 0) {
+        options.transport = signalR.HttpTransportType.LongPolling;
+      }
+
+      var connection = new signalR.HubConnectionBuilder()
+        .withUrl(_resolveHubUrl(hubPath), options)
+        .withAutomaticReconnect()
+        .build();
+
+      _hubs[hubPath] = connection;
+
+      // Store the auth fingerprint so we can detect changes later
+      _hubAuthFingerprints[hubPath] = currentFingerprint;
+
+      // Track connection state changes for UI updates
+      connection.onreconnecting(function () {
+        if (_eventListeners[hubPath]) {
+          _eventListeners[hubPath].forEach(function (fn) { fn(); });
+        }
       });
+
+      connection.onreconnected(function () {
+        if (_eventListeners[hubPath]) {
+          _eventListeners[hubPath].forEach(function (fn) { fn(); });
+        }
+      });
+
+      connection.onclose(function () {
+        if (_eventListeners[hubPath]) {
+          _eventListeners[hubPath].forEach(function (fn) { fn(); });
+        }
+      });
+
+      // Subscribe to client events once connected
+      _subscribeClientEvents(hubPath, connection);
+
+      return connection.start().then(function () {
+        return connection;
+      });
+    } catch (err) {
+      return Promise.reject(err);
     }
-
-    // Browsers cannot send custom HTTP headers on WebSocket or
-    // Server-Sent Events connections. When custom headers are
-    // configured, fall back to Long Polling which includes headers
-    // with every HTTP request so the server can read them on each
-    // hub invocation.
-    if (options.headers && Object.keys(options.headers).length > 0) {
-      options.transport = signalR.HttpTransportType.LongPolling;
-    }
-
-    var connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubPath, options)
-      .withAutomaticReconnect()
-      .build();
-
-    _hubs[hubPath] = connection;
-
-    // Store the auth fingerprint so we can detect changes later
-    _hubAuthFingerprints[hubPath] = currentFingerprint;
-
-    // Track connection state changes for UI updates
-    connection.onreconnecting(function () {
-      if (_eventListeners[hubPath]) {
-        _eventListeners[hubPath].forEach(function (fn) { fn(); });
-      }
-    });
-
-    connection.onreconnected(function () {
-      if (_eventListeners[hubPath]) {
-        _eventListeners[hubPath].forEach(function (fn) { fn(); });
-      }
-    });
-
-    connection.onclose(function () {
-      if (_eventListeners[hubPath]) {
-        _eventListeners[hubPath].forEach(function (fn) { fn(); });
-      }
-    });
-
-    // Subscribe to client events once connected
-    _subscribeClientEvents(hubPath, connection);
-
-    return connection.start().then(function () {
-      return connection;
-    });
   };
 
   // Parse the x-signalr extension from an operation
@@ -404,6 +411,39 @@ var SignalROpenApiPlugin = function (system) {
   // Extract the hub route from a path like /hubs/Chat/SendMessage
   var _getHubRoute = function (signalrExt) {
     return signalrExt.hubPath || ("/" + signalrExt.hub.toLowerCase());
+  };
+
+  // Resolve a relative hub path to an absolute URL so the SignalR client
+  // does not need to use its platform-specific URL resolution logic.
+  // In Electron / Electron.NET renderers the SignalR isBrowser check
+  // returns false (Node.js process global is present), causing
+  // "Cannot resolve '/...'" errors for relative paths. Absolute URLs
+  // starting with http:// or https:// bypass that check entirely.
+  var _resolveHubUrl = function (hubPath) {
+    if (hubPath.indexOf("http://") === 0 || hubPath.indexOf("https://") === 0) {
+      return hubPath;
+    }
+
+    // Prefer the first server URL from the OpenAPI spec (matches what
+    // SwaggerUI shows the user and handles reverse-proxy scenarios).
+    var specIm = system.specSelectors.specJson();
+    var serversIm = specIm && specIm.get("servers");
+    if (serversIm && serversIm.size > 0) {
+      var serverUrl = serversIm.getIn([0, "url"]);
+      if (serverUrl && typeof serverUrl === "string"
+        && (serverUrl.indexOf("http://") === 0 || serverUrl.indexOf("https://") === 0)) {
+        // Strip trailing slash from server URL before appending path
+        return serverUrl.replace(/\/+$/, "") + hubPath;
+      }
+    }
+
+    // Fall back to the current page origin
+    if (typeof window !== "undefined" && window.location && window.location.origin) {
+      return window.location.origin + hubPath;
+    }
+
+    // Last resort: return as-is (standard browser environments resolve it fine)
+    return hubPath;
   };
 
   // Discover all unique hub paths from the spec's x-signalr extensions.
@@ -663,6 +703,10 @@ var SignalROpenApiPlugin = function (system) {
     var isManualConnecting = connectingHook[0];
     var setManualConnecting = connectingHook[1];
 
+    var errorHook = React.useState(null);
+    var connectionError = errorHook[0];
+    var setConnectionError = errorHook[1];
+
     React.useEffect(function () {
       var listener = function () { forceUpdate(function (n) { return n + 1; }); };
 
@@ -682,6 +726,7 @@ var SignalROpenApiPlugin = function (system) {
 
     var handleConnect = function () {
       setManualConnecting(true);
+      setConnectionError(null);
       _getOrCreateHub(hubPath)
         .then(function () {
           setManualConnecting(false);
@@ -689,12 +734,15 @@ var SignalROpenApiPlugin = function (system) {
         })
         .catch(function (err) {
           setManualConnecting(false);
+          var message = err && (err.message || err.toString()) || "Unknown error";
           console.error("[SignalR OpenAPI] Manual connect failed:", err);
+          setConnectionError(message);
           forceUpdate(function (n) { return n + 1; });
         });
     };
 
     var handleDisconnect = function () {
+      setConnectionError(null);
       _disconnectHub(hubPath).then(function () {
         forceUpdate(function (n) { return n + 1; });
       });
@@ -716,16 +764,29 @@ var SignalROpenApiPlugin = function (system) {
         ? handleConnect
         : undefined;
 
-    return React.createElement("div", {
-      className: "signalr-hub-connection-bar",
-      onClick: function (e) { e.stopPropagation(); },
-    },
+    var children = [
       React.createElement("button", {
+        key: "btn",
         className: buttonClass,
         onClick: handleClick,
         disabled: showConnecting,
-      }, buttonText)
-    );
+      }, buttonText),
+    ];
+
+    if (connectionError) {
+      children.push(
+        React.createElement("span", {
+          key: "err",
+          className: "signalr-connection-error",
+          title: connectionError,
+        }, connectionError)
+      );
+    }
+
+    return React.createElement("div", {
+      className: "signalr-hub-connection-bar",
+      onClick: function (e) { e.stopPropagation(); },
+    }, children);
   }
 
   // React component for client event log panel
@@ -744,9 +805,14 @@ var SignalROpenApiPlugin = function (system) {
     var isConnected = _hubs[hubPath] && _hubs[hubPath].state === signalR.HubConnectionState.Connected;
 
     var connectAndListen = function () {
-      _getOrCreateHub(hubPath).then(function () {
-        forceUpdate(function (n) { return n + 1; });
-      });
+      _getOrCreateHub(hubPath)
+        .then(function () {
+          forceUpdate(function (n) { return n + 1; });
+        })
+        .catch(function (err) {
+          console.error("[SignalR OpenAPI] Connect & Listen failed:", err);
+          forceUpdate(function (n) { return n + 1; });
+        });
     };
 
     var clearLog = function () {

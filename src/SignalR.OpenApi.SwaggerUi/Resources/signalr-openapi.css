@@ -106,3 +106,14 @@
   font-size: 13px;
   gap: 8px;
 }
+
+/* Inline error message shown after a failed connect attempt */
+.signalr-connection-error {
+  color: #f93e3e;
+  font-size: 12px;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 600px;
+}

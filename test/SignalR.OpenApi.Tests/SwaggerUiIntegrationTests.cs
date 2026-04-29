@@ -209,6 +209,43 @@ public class SwaggerUiIntegrationTests
     }
 
     /// <summary>
+    /// Verifies that the plugin JS contains the _resolveHubUrl helper
+    /// that converts relative hub paths to absolute URLs for environments
+    /// where the SignalR client cannot resolve relative URLs (e.g. Electron).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task EmbeddedResources_PluginJs_ContainsResolveHubUrl()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi-plugin.js");
+
+        Assert.AreEqual(System.Net.HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.IsTrue(content.Contains("_resolveHubUrl"), "Plugin JS should contain _resolveHubUrl helper for absolute URL resolution");
+    }
+
+    /// <summary>
+    /// Verifies that the plugin CSS contains the connection error style
+    /// for displaying inline error messages on failed connect attempts.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
+    [TestMethod]
+    public async Task EmbeddedResources_Css_ContainsConnectionErrorStyle()
+    {
+        using var host = await CreateTestHost();
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/signalr-swagger/_resources/signalr-openapi.css");
+
+        Assert.AreEqual(System.Net.HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.IsTrue(content.Contains("signalr-connection-error"), "CSS should contain signalr-connection-error class for inline error display");
+    }
+
+    /// <summary>
     /// Verifies embedded CSS resource is served.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test.</returns>
