@@ -6,7 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.Playwright.MSTest" />
     <PackageReference Include="MSTest" />
   </ItemGroup>
 
@@ -16,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SignalR.OpenApi\SignalR.OpenApi.csproj" />
+    <ProjectReference Include="..\..\src\SignalR.OpenApi.SwaggerUi\SignalR.OpenApi.SwaggerUi.csproj" />
   </ItemGroup>
 
 </Project>
