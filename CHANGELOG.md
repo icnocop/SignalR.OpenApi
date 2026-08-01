@@ -165,7 +165,7 @@ First release.
 - Request and response examples via `ISignalROpenApiExamplesProvider<T>`.
 - A `publishRelease` workflow input for publishing stable, non-prerelease packages.
 
-[Unreleased]: https://github.com/icnocop/SignalR.OpenApi/compare/v1.0.429...HEAD
+[1.1.68]: https://github.com/icnocop/SignalR.OpenApi/compare/v1.0.429...v1.1.68
 [1.0.429]: https://github.com/icnocop/SignalR.OpenApi/compare/v1.0.320...v1.0.429
 [1.0.320]: https://github.com/icnocop/SignalR.OpenApi/compare/v1.0.319...v1.0.320
 [1.0.319]: https://github.com/icnocop/SignalR.OpenApi/compare/v1.0.318...v1.0.319
