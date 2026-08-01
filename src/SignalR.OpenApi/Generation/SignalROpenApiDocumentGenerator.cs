@@ -22,6 +22,7 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
     private readonly IServiceProvider serviceProvider;
     private readonly IReadOnlyList<ISignalROpenApiSchemaProcessor> schemaProcessors;
     private readonly Dictionary<Type, string> schemaRegistry = [];
+    private readonly HashSet<Type> polymorphicTypesInProgress = [];
     private OpenApiDocument? currentDocument;
 
     /// <summary>
@@ -60,6 +61,7 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
 
         this.currentDocument = document;
         this.schemaRegistry.Clear();
+        this.polymorphicTypesInProgress.Clear();
 
         var requiresAuth = false;
 
@@ -540,7 +542,35 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
         var polymorphicAttr = type.GetCustomAttribute<JsonPolymorphicAttribute>();
         if (polymorphicAttr is not null)
         {
-            return CreatePolymorphicSchema(type, polymorphicAttr);
+            if (!this.polymorphicTypesInProgress.Add(type))
+            {
+                // The walk cycled back into a hierarchy that is still being built
+                // (e.g., a derived type has a property typed as the base). Emit a
+                // reference instead of recursing, creating the target schema first
+                // so the reference always resolves.
+                if (!this.schemaRegistry.ContainsKey(type))
+                {
+                    this.CreateObjectSchema(type);
+                }
+
+                return new OpenApiSchema
+                {
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.Schema,
+                        Id = this.schemaRegistry[type],
+                    },
+                };
+            }
+
+            try
+            {
+                return this.CreatePolymorphicSchema(type, polymorphicAttr);
+            }
+            finally
+            {
+                this.polymorphicTypesInProgress.Remove(type);
+            }
         }
 
         // Primitives
@@ -789,9 +819,17 @@ public sealed class SignalROpenApiDocumentGenerator : ISignalROpenApiDocumentGen
             {
                 this.currentDocument?.Components.Schemas.TryGetValue(schemaName, out derivedSchema);
             }
+            else if (derived.DerivedType == type)
+            {
+                // The base type lists itself as a derived type, which System.Text.Json
+                // requires when instances of the base are serialized as-is. Build its
+                // object schema directly; CreateSchemaForType would route the base back
+                // into this method and recurse forever.
+                derivedSchema = this.CreateObjectSchema(type);
+            }
             else
             {
-                derivedSchema = CreateSchemaForType(derived.DerivedType);
+                derivedSchema = this.CreateSchemaForType(derived.DerivedType);
             }
 
             if (derivedSchema is null)

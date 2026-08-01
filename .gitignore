@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Claude Code skills link (created by .claude/link-gitHub.ps1).
+# Git follows the junction as a real directory, which would commit a duplicate
+# copy of everything under .github/copilot/skills.
+.claude/skills/

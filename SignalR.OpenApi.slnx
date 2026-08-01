@@ -9,6 +9,7 @@
     <File Path="package-lock.json" />
     <File Path="package.json" />
     <File Path="plan.md" />
+    <File Path="CHANGELOG.md" />
     <File Path="README.md" />
   </Folder>
   <Folder Name="/src/">
@@ -19,6 +20,7 @@
   <Folder Name="/test/">
     <Project Path="test\SignalR.OpenApi.Tests\SignalR.OpenApi.Tests.csproj" />
     <Project Path="test\SignalR.OpenApi.FluentValidation.Tests\SignalR.OpenApi.FluentValidation.Tests.csproj" />
+    <Project Path="test\SignalR.OpenApi.SwaggerUi.Tests\SignalR.OpenApi.SwaggerUi.Tests.csproj" />
   </Folder>
   <Folder Name="/.github/">
     <File Path=".github/copilot-instructions.md" />

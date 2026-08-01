@@ -42,16 +42,16 @@ jobs:
       shell: pwsh
       run: |
         $majorVersion = 1
-        $minorVersion = 0
-        $firstBuildYear = 2026
+        $minorVersion = 1
+        $runNumber = [int]"${{ github.run_number }}"
+        # The build number is the GitHub Actions run number, which increments on every
+        # run and never repeats. If this workflow is ever renamed or recreated the run
+        # number restarts at 1, in which case bump $minorVersion.
+        $buildVersion = $runNumber
         $currentDate = (Get-Date).ToUniversalTime()
-        $buildYear = [int]$currentDate.ToString("yyyy")
-        $currentMonthDay = $currentDate.ToString("MMdd")
-        $buildVersion = (($buildYear - $firstBuildYear) * 1200) + [int]$currentMonthDay
         $dateTimeStamp = $currentDate.ToString("yyyy-MM-dd'T'HH-mm-ss'Z'")
-        $runNumber = "${{ github.run_number }}"
         $baseVersion = "$majorVersion.$minorVersion.$buildVersion"
-        $assemblyVersion = "$baseVersion.$runNumber"
+        $assemblyVersion = "$baseVersion.0"
         $isRelease = "${{ github.event.inputs.publishRelease }}" -eq "true"
         if ($isRelease) {
           $packageVersion = $baseVersion
